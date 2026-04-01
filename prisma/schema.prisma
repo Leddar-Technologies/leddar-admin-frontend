@@ -1,0 +1,432 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+//////////////////////
+// ENUMS
+//////////////////////
+
+enum UserRole {
+  ADMIN
+  BRAND
+  ARTISAN
+}
+
+enum KYCStatus {
+  PENDING
+  VERIFIED
+  FAILED
+}
+
+enum QuoteStatus {
+  SUBMITTED
+  UNDER_REVIEW
+  APPROVED
+  REJECTED
+}
+
+enum QuoteType {
+  SAMPLE
+  PRODUCTION
+}
+
+enum OrderType {
+  SAMPLE
+  PRODUCTION
+}
+
+enum OrderStatus {
+  SUBMITTED
+  FLAT_FEE_PAID
+  SAMPLE_IN_PROGRESS
+  SAMPLE_COMPLETED
+  SAMPLE_APPROVED
+  BALANCE_PAID
+  IN_PRODUCTION
+  SHIPPED
+  DELIVERED
+}
+
+enum JobStatus {
+  ASSIGNED
+  IN_PROGRESS
+  VIDEO_UPLOADED
+  COMPLETED
+  DECLINED
+}
+
+enum PaymentStage {
+  SAMPLE_FLAT_FEE
+  MATERIAL
+  SERVICE
+  FULL
+}
+
+enum PaymentStatus {
+  PENDING
+  HELD_IN_ESCROW
+  RELEASED
+  RECEIVED
+}
+
+enum NotificationType {
+  ORDER_UPDATE
+  PAYMENT_UPDATE
+  JOB_ASSIGNED
+  SAMPLE_READY
+}
+
+//////////////////////
+// USERS
+//////////////////////
+
+model User {
+  id          String   @id @default(uuid())
+  email       String   @unique
+  password    String
+  role        UserRole
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+
+  brand       Brand?
+  artisan     Artisan?
+  admin       Admin?
+
+  notifications Notification[]
+}
+
+//////////////////////
+// BRAND
+//////////////////////
+
+model Brand {
+  id            String   @id @default(uuid())
+  userId        String   @unique
+
+  businessName  String
+  productType   String
+  whatsapp      String
+  contactInfo   String
+
+  isActive      Boolean  @default(true)
+
+  approvedAt    DateTime?
+  rejectedAt    DateTime?
+  approvedBy    String?
+
+  user          User     @relation(fields: [userId], references: [id])
+
+  kyc           KYC?
+  quotes        Quote[]
+  orders        Order[]
+  payments      Payment[]
+
+  createdAt     DateTime @default(now())
+
+  @@index([userId])
+}
+
+//////////////////////
+// ARTISAN
+//////////////////////
+
+model Artisan {
+  id          String   @id @default(uuid())
+  userId      String   @unique
+
+  fullName    String
+  specialty   String
+  whatsapp    String
+
+  isActive    Boolean  @default(true)
+
+  approvedAt  DateTime?
+  rejectedAt  DateTime?
+  approvedBy  String?
+
+  user        User     @relation(fields: [userId], references: [id])
+
+  kyc         KYC?
+  portfolio   PortfolioImage[]
+  jobs        Job[]
+  payments    Payment[]
+  bankDetail  BankDetail?
+
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
+}
+
+model PortfolioImage {
+  id         String   @id @default(uuid())
+  artisanId  String
+  fileId     String
+
+  artisan    Artisan  @relation(fields: [artisanId], references: [id])
+  file       File     @relation(fields: [fileId], references: [id])
+}
+
+//////////////////////
+// ADMIN
+//////////////////////
+
+model Admin {
+  id        String @id @default(uuid())
+  userId    String @unique
+  name      String
+
+  user      User   @relation(fields: [userId], references: [id])
+}
+
+//////////////////////
+// KYC
+//////////////////////
+
+model KYC {
+  id        String    @id @default(uuid())
+  userId    String    @unique
+  status    KYCStatus @default(PENDING)
+  provider  String
+
+  user      User      @relation(fields: [userId], references: [id])
+}
+
+//////////////////////
+// FILES (S3)
+//////////////////////
+
+model File {
+  id          String   @id @default(uuid())
+
+  url         String
+  key         String
+  bucket      String
+
+  fileType    String
+  mimeType    String
+  size        Int?
+
+  uploadedBy  String?
+  user        User?    @relation(fields: [uploadedBy], references: [id])
+
+  createdAt   DateTime @default(now())
+}
+
+//////////////////////
+// QUOTES
+//////////////////////
+
+model Quote {
+  id          String      @id @default(uuid())
+  brandId     String
+
+  productType String
+  notes       String?
+
+  fileId      String?
+  file        File?      @relation(fields: [fileId], references: [id])
+
+  status      QuoteStatus @default(SUBMITTED)
+  type        QuoteType
+
+  price       Float?
+  materials   Float?
+  labour      Float?
+
+  brand       Brand       @relation(fields: [brandId], references: [id])
+
+  createdAt   DateTime @default(now())
+
+  @@index([brandId])
+}
+
+//////////////////////
+// ORDERS
+//////////////////////
+
+model Order {
+  id          String      @id @default(uuid())
+  brandId     String
+  quoteId     String?
+
+  type        OrderType
+  status      OrderStatus
+
+  totalAmount Float
+  flatFee     Float?
+  balance     Float?
+
+  brand       Brand       @relation(fields: [brandId], references: [id])
+  quote       Quote?      @relation(fields: [quoteId], references: [id])
+
+  jobs        Job[]
+  payments    Payment[]
+  invoice     Invoice?
+  statusLogs  OrderStatusHistory[]
+  sampleReviews SampleReview[]
+
+  createdAt   DateTime @default(now())
+
+  @@index([brandId])
+}
+
+//////////////////////
+// ORDER STATUS HISTORY
+//////////////////////
+
+model OrderStatusHistory {
+  id        String      @id @default(uuid())
+  orderId   String
+
+  status    OrderStatus
+  note      String?
+
+  createdAt DateTime    @default(now())
+
+  order     Order       @relation(fields: [orderId], references: [id])
+
+  @@index([orderId])
+}
+
+//////////////////////
+// SAMPLE REVIEW
+//////////////////////
+
+model SampleReview {
+  id            String   @id @default(uuid())
+  orderId       String
+
+  status        String   // APPROVED | REJECTED | REVISION_REQUESTED
+  feedback      String?
+  revisionCount Int      @default(0)
+
+  order         Order    @relation(fields: [orderId], references: [id])
+
+  createdAt     DateTime @default(now())
+}
+
+//////////////////////
+// JOBS
+//////////////////////
+
+model Job {
+  id            String    @id @default(uuid())
+  orderId       String
+  artisanId     String
+
+  type          OrderType
+  status        JobStatus
+
+  productType   String
+  quantity      Int
+  specifications String?
+  deadline      DateTime?
+
+  videoId       String?
+  video         File?    @relation(fields: [videoId], references: [id])
+
+  order         Order    @relation(fields: [orderId], references: [id])
+  artisan       Artisan  @relation(fields: [artisanId], references: [id])
+  updates       JobUpdate[]
+
+  createdAt     DateTime @default(now())
+
+  @@index([artisanId])
+  @@index([orderId])
+}
+
+//////////////////////
+// JOB UPDATES
+//////////////////////
+
+model JobUpdate {
+  id        String   @id @default(uuid())
+  jobId     String
+  fileId    String?
+  message   String?
+
+  job       Job      @relation(fields: [jobId], references: [id])
+  file      File?    @relation(fields: [fileId], references: [id])
+
+  createdAt DateTime @default(now())
+}
+
+//////////////////////
+// PAYMENTS
+//////////////////////
+
+model Payment {
+  id          String         @id @default(uuid())
+  brandId     String?
+  artisanId   String?
+  orderId     String
+
+  amount      Float
+  stage       PaymentStage
+  status      PaymentStatus
+
+  reference   String
+
+  brand       Brand?   @relation(fields: [brandId], references: [id])
+  artisan     Artisan? @relation(fields: [artisanId], references: [id])
+  order       Order    @relation(fields: [orderId], references: [id])
+
+  createdAt   DateTime @default(now())
+
+  @@index([orderId])
+}
+
+//////////////////////
+// BANK DETAILS
+//////////////////////
+
+model BankDetail {
+  id            String   @id @default(uuid())
+  artisanId     String   @unique
+
+  bankName      String
+  accountName   String
+  accountNumber String
+
+  artisan       Artisan  @relation(fields: [artisanId], references: [id])
+}
+
+//////////////////////
+// INVOICES
+//////////////////////
+
+model Invoice {
+  id          String   @id @default(uuid())
+  orderId     String   @unique
+
+  pdfUrl      String
+  isPaid      Boolean  @default(false)
+
+  order       Order    @relation(fields: [orderId], references: [id])
+}
+
+//////////////////////
+// NOTIFICATIONS
+//////////////////////
+
+model Notification {
+  id        String            @id @default(uuid())
+  userId    String
+
+  message   String
+  type      NotificationType
+  channel   String            // EMAIL | WHATSAPP
+
+  isRead    Boolean @default(false)
+
+  user      User     @relation(fields: [userId], references: [id])
+
+  createdAt DateTime @default(now())
+}
