@@ -4,7 +4,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  // url      = env("DATABASE_URL")
+  url      = env("DATABASE_URL")
 }
 
 //////////////////////
@@ -15,6 +15,12 @@ enum UserRole {
   ADMIN
   BRAND
   ARTISAN
+}
+
+enum UserStatus {
+  PENDING
+  APPROVED
+  REJECTED
 }
 
 enum KYCStatus {
@@ -62,9 +68,9 @@ enum JobStatus {
 
 enum PaymentStage {
   SAMPLE_FLAT_FEE
-  MATERIAL
-  SERVICE
-  FULL
+  MATERIAL       // Artisan Stage 1
+  SERVICE        // Artisan Stage 2
+  FULL_PAYMENT   // Brand to Escrow
 }
 
 enum PaymentStatus {
@@ -72,6 +78,7 @@ enum PaymentStatus {
   HELD_IN_ESCROW
   RELEASED
   RECEIVED
+  FAILED
 }
 
 enum NotificationType {
@@ -86,13 +93,15 @@ enum NotificationType {
 //////////////////////
 
 model User {
-  id            String    @id @default(uuid())
-  email         String    @unique
+  id            String     @id @default(uuid())
+  email         String     @unique
   password      String
   role          UserRole
+  status        UserStatus @default(PENDING)
+  emailVerified Boolean    @default(false)
 
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
   deletedAt     DateTime?
 
   kyc           KYC?
@@ -101,7 +110,8 @@ model User {
   admin         Admin?
 
   notifications Notification[]
-  files         File[]    // Back-relation for uploaded files
+  files         File[]            @relation("UserUploads")
+  verifyTokens  VerificationToken[]
 }
 
 //////////////////////
@@ -111,19 +121,18 @@ model User {
 model Brand {
   id            String    @id @default(uuid())
   userId        String    @unique
+  user          User      @relation(fields: [userId], references: [id])
 
   businessName  String
   productType   String
   whatsapp      String
   contactInfo   String
 
-  isActive      Boolean   @default(true)
+  isActive      Boolean   @default(false)
 
   approvedAt    DateTime?
   rejectedAt    DateTime?
-  approvedBy    String?
-
-  user          User      @relation(fields: [userId], references: [id])
+  approvedBy    String?   // Admin ID or name
 
   quotes        Quote[]
   orders        Order[]
@@ -141,18 +150,17 @@ model Brand {
 model Artisan {
   id            String    @id @default(uuid())
   userId        String    @unique
+  user          User      @relation(fields: [userId], references: [id])
 
   fullName      String
   specialty     String
   whatsapp      String
 
-  isActive      Boolean   @default(true)
+  isActive      Boolean   @default(false)
 
   approvedAt    DateTime?
   rejectedAt    DateTime?
   approvedBy    String?
-
-  user          User      @relation(fields: [userId], references: [id])
 
   portfolio     PortfolioImage[]
   jobs          Job[]
@@ -168,6 +176,7 @@ model PortfolioImage {
   id         String   @id @default(uuid())
   artisanId  String
   fileId     String
+  isApproved Boolean  @default(false) // Admin quality check
 
   artisan    Artisan  @relation(fields: [artisanId], references: [id])
   file       File     @relation(fields: [fileId], references: [id])
@@ -180,42 +189,48 @@ model PortfolioImage {
 model Admin {
   id      String @id @default(uuid())
   userId  String @unique
-  name    String
-
   user    User   @relation(fields: [userId], references: [id])
+  name    String
 }
 
 //////////////////////
-// KYC
+// KYC & AUTH
 //////////////////////
 
 model KYC {
   id        String    @id @default(uuid())
   userId    String    @unique
-  status    KYCStatus @default(PENDING)
-  provider  String
-
   user      User      @relation(fields: [userId], references: [id])
+  status    KYCStatus @default(PENDING)
+  provider  String    // QoreID / VerifyMe
+}
+
+model VerificationToken {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
 }
 
 //////////////////////
-// FILES (S3)
+// FILES (Cloudinary)
 //////////////////////
 
 model File {
   id              String           @id @default(uuid())
   url             String
   key             String
-  bucket          String
   fileType        String
   mimeType        String
   size            Int?
 
   uploadedBy      String?
-  user            User?            @relation(fields: [uploadedBy], references: [id])
+  user            User?            @relation("UserUploads", fields: [uploadedBy], references: [id])
 
   quotes          Quote[]
-  jobVideos       Job[]
+  jobVideos       Job[]            @relation("JobVideo")
   jobUpdates      JobUpdate[]
   portfolioImages PortfolioImage[]
 
@@ -229,11 +244,11 @@ model File {
 model Quote {
   id          String      @id @default(uuid())
   brandId     String
+  brand       Brand       @relation(fields: [brandId], references: [id])
 
   productType String
   notes       String?
-
-  fileId      String?
+  fileId      String?     // Cloudinary link to sketch/brief
   file        File?       @relation(fields: [fileId], references: [id])
 
   status      QuoteStatus @default(SUBMITTED)
@@ -243,11 +258,9 @@ model Quote {
   materials   Float?
   labour      Float?
 
-  brand       Brand       @relation(fields: [brandId], references: [id])
-  orders      Order[]     // Added back-relation
+  orders      Order[]
 
   createdAt   DateTime    @default(now())
-
   @@index([brandId])
 }
 
@@ -258,17 +271,16 @@ model Quote {
 model Order {
   id            String               @id @default(uuid())
   brandId       String
+  brand         Brand                @relation(fields: [brandId], references: [id])
   quoteId       String?
+  quote         Quote?               @relation(fields: [quoteId], references: [id])
 
   type          OrderType
-  status        OrderStatus
+  status        OrderStatus          @default(SUBMITTED)
 
   totalAmount   Float
-  flatFee       Float?
-  balance       Float?
-
-  brand         Brand                @relation(fields: [brandId], references: [id])
-  quote         Quote?               @relation(fields: [quoteId], references: [id])
+  flatFeePaid   Float?               // For Sample flat fee tracking
+  escrowBalance Float                @default(0) // Paystack escrow tracking
 
   jobs          Job[]
   payments      Payment[]
@@ -277,41 +289,28 @@ model Order {
   sampleReviews SampleReview[]
 
   createdAt     DateTime             @default(now())
-
   @@index([brandId])
 }
-
-//////////////////////
-// ORDER STATUS HISTORY
-//////////////////////
 
 model OrderStatusHistory {
   id        String      @id @default(uuid())
   orderId   String
-
+  order     Order       @relation(fields: [orderId], references: [id])
   status    OrderStatus
   note      String?
-
   createdAt DateTime    @default(now())
-
-  order     Order       @relation(fields: [orderId], references: [id])
 
   @@index([orderId])
 }
 
-//////////////////////
-// SAMPLE REVIEW
-//////////////////////
-
 model SampleReview {
   id            String   @id @default(uuid())
   orderId       String
+  order         Order    @relation(fields: [orderId], references: [id])
 
   status        String   // APPROVED | REJECTED | REVISION_REQUESTED
   feedback      String?
-  revisionCount Int      @default(0)
-
-  order         Order    @relation(fields: [orderId], references: [id])
+  revisionCount Int      @default(0) // Max 2 per doc
 
   createdAt     DateTime @default(now())
 }
@@ -323,42 +322,35 @@ model SampleReview {
 model Job {
   id             String      @id @default(uuid())
   orderId        String
+  order          Order       @relation(fields: [orderId], references: [id])
   artisanId      String
+  artisan        Artisan     @relation(fields: [artisanId], references: [id])
 
   type           OrderType
-  status         JobStatus
+  status         JobStatus   @default(ASSIGNED)
 
   productType    String
   quantity       Int
   specifications String?
   deadline       DateTime?
 
-  videoId        String?
-  video          File?       @relation(fields: [videoId], references: [id])
+  videoId        String?     // Video of finished sample
+  video          File?       @relation("JobVideo", fields: [videoId], references: [id])
 
-  order          Order       @relation(fields: [orderId], references: [id])
-  artisan        Artisan     @relation(fields: [artisanId], references: [id])
   updates        JobUpdate[]
-
   createdAt      DateTime    @default(now())
 
   @@index([artisanId])
   @@index([orderId])
 }
 
-//////////////////////
-// JOB UPDATES
-//////////////////////
-
 model JobUpdate {
   id        String   @id @default(uuid())
   jobId     String
-  fileId    String?
-  message   String?
-
   job       Job      @relation(fields: [jobId], references: [id])
+  fileId    String?
   file      File?    @relation(fields: [fileId], references: [id])
-
+  message   String?
   createdAt DateTime @default(now())
 }
 
@@ -368,22 +360,20 @@ model JobUpdate {
 
 model Payment {
   id        String        @id @default(uuid())
-  brandId   String?
-  artisanId String?
   orderId   String
+  order     Order         @relation(fields: [orderId], references: [id])
+  
+  brandId   String?
+  brand     Brand?        @relation(fields: [brandId], references: [id])
+  artisanId String?
+  artisan   Artisan?      @relation(fields: [artisanId], references: [id])
 
   amount    Float
   stage     PaymentStage
-  status    PaymentStatus
-
-  reference String
-
-  brand     Brand?        @relation(fields: [brandId], references: [id])
-  artisan   Artisan?      @relation(fields: [artisanId], references: [id])
-  order     Order         @relation(fields: [orderId], references: [id])
+  status    PaymentStatus @default(PENDING)
+  reference String        @unique // Paystack Reference
 
   createdAt DateTime      @default(now())
-
   @@index([orderId])
 }
 
@@ -394,12 +384,12 @@ model Payment {
 model BankDetail {
   id            String   @id @default(uuid())
   artisanId     String   @unique
+  artisan       Artisan  @relation(fields: [artisanId], references: [id])
 
   bankName      String
   accountName   String
   accountNumber String
-
-  artisan       Artisan  @relation(fields: [artisanId], references: [id])
+  isVerified    Boolean  @default(false)
 }
 
 //////////////////////
@@ -409,11 +399,10 @@ model BankDetail {
 model Invoice {
   id        String   @id @default(uuid())
   orderId   String   @unique
+  order     Order    @relation(fields: [orderId], references: [id])
 
   pdfUrl    String
   isPaid    Boolean  @default(false)
-
-  order     Order    @relation(fields: [orderId], references: [id])
 }
 
 //////////////////////
@@ -423,14 +412,12 @@ model Invoice {
 model Notification {
   id        String           @id @default(uuid())
   userId    String
+  user      User             @relation(fields: [userId], references: [id])
 
   message   String
   type      NotificationType
   channel   String           // EMAIL | WHATSAPP
 
   isRead    Boolean          @default(false)
-
-  user      User             @relation(fields: [userId], references: [id])
-
   createdAt DateTime         @default(now())
 }
