@@ -4,7 +4,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
+  // url      = env("DATABASE_URL")
 }
 
 //////////////////////
@@ -86,20 +86,22 @@ enum NotificationType {
 //////////////////////
 
 model User {
-  id          String   @id @default(uuid())
-  email       String   @unique
-  password    String
-  role        UserRole
+  id            String    @id @default(uuid())
+  email         String    @unique
+  password      String
+  role          UserRole
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  deletedAt   DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  deletedAt     DateTime?
 
-  brand       Brand?
-  artisan     Artisan?
-  admin       Admin?
+  kyc           KYC?
+  brand         Brand?
+  artisan       Artisan?
+  admin         Admin?
 
   notifications Notification[]
+  files         File[]    // Back-relation for uploaded files
 }
 
 //////////////////////
@@ -107,28 +109,27 @@ model User {
 //////////////////////
 
 model Brand {
-  id            String   @id @default(uuid())
-  userId        String   @unique
+  id            String    @id @default(uuid())
+  userId        String    @unique
 
   businessName  String
   productType   String
   whatsapp      String
   contactInfo   String
 
-  isActive      Boolean  @default(true)
+  isActive      Boolean   @default(true)
 
   approvedAt    DateTime?
   rejectedAt    DateTime?
   approvedBy    String?
 
-  user          User     @relation(fields: [userId], references: [id])
+  user          User      @relation(fields: [userId], references: [id])
 
-  kyc           KYC?
   quotes        Quote[]
   orders        Order[]
   payments      Payment[]
 
-  createdAt     DateTime @default(now())
+  createdAt     DateTime  @default(now())
 
   @@index([userId])
 }
@@ -138,28 +139,27 @@ model Brand {
 //////////////////////
 
 model Artisan {
-  id          String   @id @default(uuid())
-  userId      String   @unique
+  id            String    @id @default(uuid())
+  userId        String    @unique
 
-  fullName    String
-  specialty   String
-  whatsapp    String
+  fullName      String
+  specialty     String
+  whatsapp      String
 
-  isActive    Boolean  @default(true)
+  isActive      Boolean   @default(true)
 
-  approvedAt  DateTime?
-  rejectedAt  DateTime?
-  approvedBy  String?
+  approvedAt    DateTime?
+  rejectedAt    DateTime?
+  approvedBy    String?
 
-  user        User     @relation(fields: [userId], references: [id])
+  user          User      @relation(fields: [userId], references: [id])
 
-  kyc         KYC?
-  portfolio   PortfolioImage[]
-  jobs        Job[]
-  payments    Payment[]
-  bankDetail  BankDetail?
+  portfolio     PortfolioImage[]
+  jobs          Job[]
+  payments      Payment[]
+  bankDetail    BankDetail?
 
-  createdAt   DateTime @default(now())
+  createdAt     DateTime  @default(now())
 
   @@index([userId])
 }
@@ -178,11 +178,11 @@ model PortfolioImage {
 //////////////////////
 
 model Admin {
-  id        String @id @default(uuid())
-  userId    String @unique
-  name      String
+  id      String @id @default(uuid())
+  userId  String @unique
+  name    String
 
-  user      User   @relation(fields: [userId], references: [id])
+  user    User   @relation(fields: [userId], references: [id])
 }
 
 //////////////////////
@@ -203,20 +203,23 @@ model KYC {
 //////////////////////
 
 model File {
-  id          String   @id @default(uuid())
+  id              String           @id @default(uuid())
+  url             String
+  key             String
+  bucket          String
+  fileType        String
+  mimeType        String
+  size            Int?
 
-  url         String
-  key         String
-  bucket      String
+  uploadedBy      String?
+  user            User?            @relation(fields: [uploadedBy], references: [id])
 
-  fileType    String
-  mimeType    String
-  size        Int?
+  quotes          Quote[]
+  jobVideos       Job[]
+  jobUpdates      JobUpdate[]
+  portfolioImages PortfolioImage[]
 
-  uploadedBy  String?
-  user        User?    @relation(fields: [uploadedBy], references: [id])
-
-  createdAt   DateTime @default(now())
+  createdAt       DateTime         @default(now())
 }
 
 //////////////////////
@@ -231,7 +234,7 @@ model Quote {
   notes       String?
 
   fileId      String?
-  file        File?      @relation(fields: [fileId], references: [id])
+  file        File?       @relation(fields: [fileId], references: [id])
 
   status      QuoteStatus @default(SUBMITTED)
   type        QuoteType
@@ -241,8 +244,9 @@ model Quote {
   labour      Float?
 
   brand       Brand       @relation(fields: [brandId], references: [id])
+  orders      Order[]     // Added back-relation
 
-  createdAt   DateTime @default(now())
+  createdAt   DateTime    @default(now())
 
   @@index([brandId])
 }
@@ -252,27 +256,27 @@ model Quote {
 //////////////////////
 
 model Order {
-  id          String      @id @default(uuid())
-  brandId     String
-  quoteId     String?
+  id            String               @id @default(uuid())
+  brandId       String
+  quoteId       String?
 
-  type        OrderType
-  status      OrderStatus
+  type          OrderType
+  status        OrderStatus
 
-  totalAmount Float
-  flatFee     Float?
-  balance     Float?
+  totalAmount   Float
+  flatFee       Float?
+  balance       Float?
 
-  brand       Brand       @relation(fields: [brandId], references: [id])
-  quote       Quote?      @relation(fields: [quoteId], references: [id])
+  brand         Brand                @relation(fields: [brandId], references: [id])
+  quote         Quote?               @relation(fields: [quoteId], references: [id])
 
-  jobs        Job[]
-  payments    Payment[]
-  invoice     Invoice?
-  statusLogs  OrderStatusHistory[]
+  jobs          Job[]
+  payments      Payment[]
+  invoice       Invoice?
+  statusLogs    OrderStatusHistory[]
   sampleReviews SampleReview[]
 
-  createdAt   DateTime @default(now())
+  createdAt     DateTime             @default(now())
 
   @@index([brandId])
 }
@@ -317,26 +321,26 @@ model SampleReview {
 //////////////////////
 
 model Job {
-  id            String    @id @default(uuid())
-  orderId       String
-  artisanId     String
+  id             String      @id @default(uuid())
+  orderId        String
+  artisanId      String
 
-  type          OrderType
-  status        JobStatus
+  type           OrderType
+  status         JobStatus
 
-  productType   String
-  quantity      Int
+  productType    String
+  quantity       Int
   specifications String?
-  deadline      DateTime?
+  deadline       DateTime?
 
-  videoId       String?
-  video         File?    @relation(fields: [videoId], references: [id])
+  videoId        String?
+  video          File?       @relation(fields: [videoId], references: [id])
 
-  order         Order    @relation(fields: [orderId], references: [id])
-  artisan       Artisan  @relation(fields: [artisanId], references: [id])
-  updates       JobUpdate[]
+  order          Order       @relation(fields: [orderId], references: [id])
+  artisan        Artisan     @relation(fields: [artisanId], references: [id])
+  updates        JobUpdate[]
 
-  createdAt     DateTime @default(now())
+  createdAt      DateTime    @default(now())
 
   @@index([artisanId])
   @@index([orderId])
@@ -363,22 +367,22 @@ model JobUpdate {
 //////////////////////
 
 model Payment {
-  id          String         @id @default(uuid())
-  brandId     String?
-  artisanId   String?
-  orderId     String
+  id        String        @id @default(uuid())
+  brandId   String?
+  artisanId String?
+  orderId   String
 
-  amount      Float
-  stage       PaymentStage
-  status      PaymentStatus
+  amount    Float
+  stage     PaymentStage
+  status    PaymentStatus
 
-  reference   String
+  reference String
 
-  brand       Brand?   @relation(fields: [brandId], references: [id])
-  artisan     Artisan? @relation(fields: [artisanId], references: [id])
-  order       Order    @relation(fields: [orderId], references: [id])
+  brand     Brand?        @relation(fields: [brandId], references: [id])
+  artisan   Artisan?      @relation(fields: [artisanId], references: [id])
+  order     Order         @relation(fields: [orderId], references: [id])
 
-  createdAt   DateTime @default(now())
+  createdAt DateTime      @default(now())
 
   @@index([orderId])
 }
@@ -403,13 +407,13 @@ model BankDetail {
 //////////////////////
 
 model Invoice {
-  id          String   @id @default(uuid())
-  orderId     String   @unique
+  id        String   @id @default(uuid())
+  orderId   String   @unique
 
-  pdfUrl      String
-  isPaid      Boolean  @default(false)
+  pdfUrl    String
+  isPaid    Boolean  @default(false)
 
-  order       Order    @relation(fields: [orderId], references: [id])
+  order     Order    @relation(fields: [orderId], references: [id])
 }
 
 //////////////////////
@@ -417,16 +421,16 @@ model Invoice {
 //////////////////////
 
 model Notification {
-  id        String            @id @default(uuid())
+  id        String           @id @default(uuid())
   userId    String
 
   message   String
   type      NotificationType
-  channel   String            // EMAIL | WHATSAPP
+  channel   String           // EMAIL | WHATSAPP
 
-  isRead    Boolean @default(false)
+  isRead    Boolean          @default(false)
 
-  user      User     @relation(fields: [userId], references: [id])
+  user      User             @relation(fields: [userId], references: [id])
 
-  createdAt DateTime @default(now())
+  createdAt DateTime         @default(now())
 }
