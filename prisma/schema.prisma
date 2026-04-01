@@ -4,7 +4,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
+  // url      = env("DATABASE_URL")
 }
 
 //////////////////////
@@ -88,6 +88,14 @@ enum NotificationType {
   SAMPLE_READY
 }
 
+enum ArtisanSpecialty {
+  BAGS
+  WALLETS
+  BELTS
+  SHOES
+  JACKETS
+}
+
 //////////////////////
 // USERS
 //////////////////////
@@ -147,16 +155,49 @@ model Brand {
 // ARTISAN
 //////////////////////
 
+// model Artisan {
+//   id            String    @id @default(uuid())
+//   userId        String    @unique
+//   user          User      @relation(fields: [userId], references: [id])
+
+//   fullName      String
+//   specialty     String
+//   whatsapp      String
+
+//   isActive      Boolean   @default(false)
+
+//   approvedAt    DateTime?
+//   rejectedAt    DateTime?
+//   approvedBy    String?
+
+//   portfolio     PortfolioImage[]
+//   jobs          Job[]
+//   payments      Payment[]
+//   bankDetail    BankDetail?
+
+//   createdAt     DateTime  @default(now())
+
+//   @@index([userId])
+// }
+
 model Artisan {
   id            String    @id @default(uuid())
   userId        String    @unique
   user          User      @relation(fields: [userId], references: [id])
 
   fullName      String
-  specialty     String
+  phone         String?        // ✅ NEW
   whatsapp      String
 
+  specialty ArtisanSpecialty
+  yearsOfExperience Int?       // ✅ NEW
+  bio           String?        // ✅ NEW
+
+  city          String?        // ✅ NEW
+  state         String?        // ✅ NEW
+
   isActive      Boolean   @default(false)
+  isAvailable   Boolean   @default(true) // ✅ NEW (VERY useful later)
 
   approvedAt    DateTime?
   rejectedAt    DateTime?
