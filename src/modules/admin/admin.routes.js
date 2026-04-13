@@ -17,5 +17,6 @@ router.get(
 );
 router.patch("/approve/:userId", protect, isAdmin, controller.approveUser);
 router.patch("/reject/:userId", protect, isAdmin, controller.rejectUser);
+router.get("/me", protect, isAdmin, controller.getMe);
 
 export default router;

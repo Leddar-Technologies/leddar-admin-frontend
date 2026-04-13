@@ -62,3 +62,13 @@ export const rejectUser = async (req, res) => {
     });
   }
 };
+
+export const getMe = async (req, res) => {
+  try {
+    const result = await service.getMe(req.user.userId);
+    res.json({ success: true, data: result });
+  } catch (err) {
+    const status = err.message === "Forbidden" ? 403 : 404;
+    res.status(status).json({ success: false, error: err.message });
+  }
+};

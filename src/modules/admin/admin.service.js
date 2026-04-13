@@ -94,3 +94,22 @@ export const rejectUser = async (userId, adminId) => {
     data: updateData,
   });
 };
+
+export const getMe = async (userId) => {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      id: true,
+      email: true,
+      role: true,
+      status: true,
+      emailVerified: true,
+      createdAt: true,
+    },
+  });
+
+  if (!user) throw new Error("User not found");
+  if (user.role !== "ADMIN") throw new Error("Forbidden");
+
+  return user;
+};
