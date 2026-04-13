@@ -27,16 +27,8 @@ export const registerBrand = async (req, res) => {
 
 export const registerArtisan = async (req, res) => {
   try {
-    const { email, password, fullName } = req.body;
-
-    if (!email || !password || !fullName) {
-      return res.status(400).json({
-        success: false,
-        error: "Missing required fields",
-      });
-    }
-
-    const result = await service.registerArtisan(req.body);
+    // Pass both the text data and the files to the service
+    const result = await service.registerArtisan(req.body, req.files);
 
     res.status(201).json({
       success: true,
@@ -75,10 +67,36 @@ export const verifyEmail = async (req, res) => {
   }
 };
 
+//   try {
+//     const { email, password } = req.body;
+
+//     if (!email || !password) {
+//       return res.status(400).json({
+//         success: false,
+//         error: "Email and password are required",
+//       });
+//     }
+
+//     const result = await service.login(req.body);
+
+//     res.json({
+//       success: true,
+//       data: result,
+//     });
+//   } catch (err) {
+//     res.status(401).json({
+//       success: false,
+//       error: err.message,
+//     });
+//   }
+// };
+
+// In your auth.controller.js
 export const login = async (req, res) => {
   try {
     const { email, password } = req.body;
 
+    // Basic validation before hitting the service
     if (!email || !password) {
       return res.status(400).json({
         success: false,
@@ -93,9 +111,31 @@ export const login = async (req, res) => {
       data: result,
     });
   } catch (err) {
-    res.status(401).json({
+    // Default to 401 Unauthorized for general login failures
+    let statusCode = 401;
+
+    // Handle the specific "Awaiting approval" case
+    if (err.message === "Awaiting admin approval") {
+      statusCode = 403; // Forbidden
+    }
+
+    // Handle the case where the account might be rejected
+    else if (err.message.includes("rejected")) {
+      statusCode = 403; // Forbidden
+    }
+
+    res.status(statusCode).json({
       success: false,
       error: err.message,
     });
+  }
+};
+
+export const getMe = async (req, res) => {
+  try {
+    const result = await service.getMe(req.user.userId);
+    res.json({ success: true, data: result });
+  } catch (err) {
+    res.status(404).json({ success: false, error: err.message });
   }
 };

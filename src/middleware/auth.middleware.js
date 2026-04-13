@@ -11,6 +11,7 @@ export const protect = (req, res, next) => {
 
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
+    console.log("DECODED USER:", decoded);
     req.user = decoded;
     next();
   } catch (err) {
@@ -25,4 +26,11 @@ export const authorize = (...roles) => {
     }
     next();
   };
+};
+
+export const isAdmin = (req, res, next) => {
+  if (req.user.role !== "ADMIN") {
+    return res.status(403).json({ message: "Forbidden" });
+  }
+  next();
 };

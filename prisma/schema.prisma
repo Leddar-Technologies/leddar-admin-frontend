@@ -4,7 +4,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  // url      = env("DATABASE_URL")
+  
 }
 
 //////////////////////
@@ -135,6 +135,9 @@ model Brand {
   productType  String
   whatsapp     String
   description  String?
+  contactName  String
+  brandEstimatedQty String
+  
 
   isActive Boolean @default(false)
 
@@ -150,35 +153,6 @@ model Brand {
 
   @@index([userId])
 }
-
-//////////////////////
-// ARTISAN
-//////////////////////
-
-// model Artisan {
-//   id            String    @id @default(uuid())
-//   userId        String    @unique
-//   user          User      @relation(fields: [userId], references: [id])
-
-//   fullName      String
-//   specialty     String
-//   whatsapp      String
-
-//   isActive      Boolean   @default(false)
-
-//   approvedAt    DateTime?
-//   rejectedAt    DateTime?
-//   approvedBy    String?
-
-//   portfolio     PortfolioImage[]
-//   jobs          Job[]
-//   payments      Payment[]
-//   bankDetail    BankDetail?
-
-//   createdAt     DateTime  @default(now())
-
-//   @@index([userId])
-// }
 
 model Artisan {
   id     String @id @default(uuid())

@@ -22,16 +22,8 @@ export const getPendingUsers = async (req, res) => {
 
 export const approveUser = async (req, res) => {
   try {
-    if (req.user.role !== "ADMIN") {
-      return res.status(403).json({ error: "Forbidden" });
-    }
-
     const { userId } = req.params;
-
-    if (!userId) {
-      return res.status(400).json({ error: "User ID is required" });
-    }
-
+    // req.user.userId comes from your protect middleware
     const result = await service.approveUser(userId, req.user.userId);
 
     res.json({
@@ -40,10 +32,7 @@ export const approveUser = async (req, res) => {
       data: result,
     });
   } catch (err) {
-    res.status(400).json({
-      success: false,
-      error: err.message,
-    });
+    res.status(400).json({ success: false, error: err.message });
   }
 };
 

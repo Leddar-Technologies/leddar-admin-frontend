@@ -1,4 +1,4 @@
-import { prisma } from "../../config/prisma.js";
+import prisma from "../../config/prisma.js";
 import bcrypt from "bcryptjs";
 import {
   generateAccessToken,
@@ -30,7 +30,8 @@ export const registerBrand = async (data) => {
           businessName: data.businessName,
           productType: data.productType,
           whatsapp: data.whatsapp,
-          contactInfo: data.contactInfo,
+          contactName: data.contactName,
+          brandEstimatedQty: data.brandEstimatedQty,
         },
       },
     },
@@ -56,11 +57,14 @@ export const registerBrand = async (data) => {
 // REGISTER ARTISAN
 //////////////////////
 
-export const registerArtisan = async (data) => {
+export const registerArtisan = async (data, files) => {
+  if (!files || files.length < 3) {
+    throw new Error("Please upload at least 3 portfolio images.");
+  }
+
   const existing = await prisma.user.findUnique({
     where: { email: data.email },
   });
-
   if (existing) throw new Error("User already exists");
 
   const hashed = await bcrypt.hash(data.password, 10);
@@ -70,20 +74,27 @@ export const registerArtisan = async (data) => {
       email: data.email,
       password: hashed,
       role: "ARTISAN",
-      status: "PENDING",
       artisan: {
         create: {
           fullName: data.fullName,
           phone: data.phone,
           whatsapp: data.whatsapp,
-          specialty: data.specialty,
-          yearsOfExperience: data.yearsOfExperience,
+          specialty: data.specialty, // Must be BAGS, WALLETS, etc.
+          yearsOfExperience: parseInt(data.yearsOfExperience) || 0,
           bio: data.bio,
           city: data.city,
           state: data.state,
           portfolio: {
-            create: data.portfolio.map((fileId) => ({
-              fileId,
+            create: files.map((file) => ({
+              file: {
+                create: {
+                  url: `/uploads/${file.filename}`,
+                  key: file.filename,
+                  fileType: "IMAGE",
+                  mimeType: file.mimetype,
+                  size: file.size,
+                },
+              },
             })),
           },
         },
@@ -92,17 +103,11 @@ export const registerArtisan = async (data) => {
   });
 
   const token = generateVerificationToken();
-
   await prisma.verificationToken.create({
-    data: {
-      userId: user.id,
-      token,
-      expiresAt: new Date(Date.now() + 1000 * 60 * 60),
-    },
+    data: { userId: user.id, token, expiresAt: new Date(Date.now() + 3600000) },
   });
 
-  await sendVerificationEmail(user.email, token);
-
+  await sendVerificationEmail(user.email, token, "ARTISAN");
   return { message: "Check your email to verify account" };
 };
 
@@ -137,25 +142,92 @@ export const verifyEmail = async (token) => {
 // LOGIN
 //////////////////////
 
-export const login = async (data) => {
+export const login = async (credentials) => {
+  const { email, password } = credentials;
+
+  // 1. Fetch the user
+  // We include the emailVerified field to ensure they've confirmed their mail too
   const user = await prisma.user.findUnique({
-    where: { email: data.email },
+    where: { email },
   });
 
-  if (!user) throw new Error("Invalid credentials");
+  // 2. Safeguard: Check if user exists
+  // This prevents the "Cannot read properties of undefined" error
+  if (!user) {
+    throw new Error("Invalid credentials");
+  }
 
-  const valid = await bcrypt.compare(data.password, user.password);
-  if (!valid) throw new Error("Invalid credentials");
-
+  // 5. Optional: Check Email Verification
   if (!user.emailVerified) {
-    throw new Error("Verify your email first");
+    throw new Error("Please verify your email address");
   }
 
-  if (user.status !== "APPROVED") {
-    throw new Error("Await admin approval");
+  // 4. Check Admin Approval Status
+  // We only block BRAND and ARTISAN roles.
+  // Admins usually don't need to approve themselves.
+  if (user.role !== "ADMIN" && user.status === "PENDING") {
+    throw new Error("Awaiting admin approval");
   }
 
+  if (user.status === "REJECTED") {
+    throw new Error("Your account has been rejected. Please contact support.");
+  }
+
+  // 3. Verify password first
+  // (Standard practice: verify who they are before telling them their status)
+  const isPasswordValid = await bcrypt.compare(password, user.password);
+  if (!isPasswordValid) {
+    throw new Error("Invalid credentials");
+  }
+  // 6. Generate Token (Assuming you have a helper for this)
+  console.log("User role:", user.role);
   const token = generateAccessToken(user);
 
-  return { token };
+  // Return user data (excluding password) and token
+  const { password: _, ...userWithoutPassword } = user;
+
+  return {
+    user: userWithoutPassword,
+    token,
+  };
+};
+
+export const getMe = async (userId) => {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      id: true,
+      email: true,
+      role: true,
+      status: true,
+      emailVerified: true,
+      createdAt: true,
+      brand: {
+        select: {
+          businessName: true,
+          productType: true,
+          whatsapp: true,
+          contactName: true,
+          isActive: true,
+          approvedAt: true,
+        },
+      },
+      artisan: {
+        select: {
+          fullName: true,
+          phone: true,
+          specialty: true,
+          city: true,
+          state: true,
+          isActive: true,
+          approvedAt: true,
+          portfolio: true,
+        },
+      },
+    },
+  });
+
+  if (!user) throw new Error("User not found");
+
+  return user;
 };
