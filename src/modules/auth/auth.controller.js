@@ -139,3 +139,49 @@ export const getMe = async (req, res) => {
     res.status(404).json({ success: false, error: err.message });
   }
 };
+
+export const forgotPassword = async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res
+        .status(400)
+        .json({ success: false, error: "Email is required" });
+    }
+
+    const result = await service.forgotPassword(email);
+
+    res.json({ success: true, message: result.message });
+  } catch (err) {
+    res.status(400).json({ success: false, error: err.message });
+  }
+};
+
+export const resetPassword = async (req, res) => {
+  try {
+    const { token } = req.query;
+    const { password } = req.body;
+
+    if (!token || !password) {
+      return res
+        .status(400)
+        .json({ success: false, error: "Token and password are required" });
+    }
+
+    if (password.length < 8) {
+      return res
+        .status(400)
+        .json({
+          success: false,
+          error: "Password must be at least 8 characters",
+        });
+    }
+
+    const result = await service.resetPassword(token, password);
+
+    res.json({ success: true, message: result.message });
+  } catch (err) {
+    res.status(400).json({ success: false, error: err.message });
+  }
+};

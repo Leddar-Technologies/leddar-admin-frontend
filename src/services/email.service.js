@@ -103,3 +103,55 @@ export const sendVerificationEmail = async (email, token, role = "BRAND") => {
     `,
   });
 };
+
+export const sendPasswordResetEmail = async (email, token, role = "BRAND") => {
+  const configs = {
+    BRAND: {
+      from: `"Leddar for Brands" <no-reply@leddar.com>`,
+      subject: "Reset your Brand password",
+      link: `${process.env.BRAND_CLIENT_URL}/reset-password?token=${token}`,
+      heading: "Reset your password",
+      body: "Click below to reset your Leddar brand account password.",
+      footer: "If you didn't request this, ignore this email.",
+    },
+    ARTISAN: {
+      from: `"Leddar for Artisans" <no-reply@leddar.com>`,
+      subject: "Reset your Artisan password",
+      link: `${process.env.ARTISAN_CLIENT_URL}/reset-password?token=${token}`,
+      heading: "Reset your password",
+      body: "Click below to reset your Leddar artisan account password.",
+      footer: "If you didn't request this, ignore this email.",
+    },
+    ADMIN: {
+      from: `"Leddar Admin" <no-reply@leddar.com>`,
+      subject: "Reset your Admin password",
+      link: `${process.env.ADMIN_CLIENT_URL}/reset-password?token=${token}`,
+      heading: "Reset your Admin password",
+      body: "Click below to reset your Leddar admin account password.",
+      footer: "If you didn't request this, ignore this email.",
+    },
+  };
+
+  const { from, subject, link, heading, body, footer } = configs[role];
+
+  await transporter.sendMail({
+    from,
+    to: email,
+    subject,
+    html: `
+      <h2>${heading}</h2>
+      <p>${body}</p>
+      <a href="${link}" style="
+        display: inline-block;
+        padding: 12px 24px;
+        background-color: #000;
+        color: #fff;
+        text-decoration: none;
+        border-radius: 6px;
+        font-weight: bold;
+      ">Reset Password</a>
+      <p>This link expires in <strong>15 minutes</strong>.</p>
+      <p>${footer}</p>
+    `,
+  });
+};

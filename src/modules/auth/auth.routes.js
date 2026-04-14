@@ -15,5 +15,7 @@ router.get("/verify-email", controller.verifyEmail);
 router.post("/login", controller.login);
 
 router.get("/me", protect, controller.getMe);
+router.post("/forgot-password", controller.forgotPassword);
+router.post("/reset-password", controller.resetPassword);
 
 export default router;

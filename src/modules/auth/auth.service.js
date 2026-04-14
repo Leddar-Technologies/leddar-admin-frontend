@@ -1,10 +1,16 @@
-import prisma from "../../config/prisma.js";
 import bcrypt from "bcryptjs";
+import crypto from "crypto";
+
+import prisma from "../../config/prisma.js";
 import {
   generateAccessToken,
   generateVerificationToken,
 } from "../../utils/token.js";
-import { sendVerificationEmail } from "../../services/email.service.js";
+import {
+  sendVerificationEmail,
+  sendPasswordResetEmail,
+} from "../../services/email.service.js";
+
 
 //////////////////////
 // REGISTER BRAND
@@ -230,4 +236,55 @@ export const getMe = async (userId) => {
   if (!user) throw new Error("User not found");
 
   return user;
+};
+
+export const forgotPassword = async (email) => {
+  const user = await prisma.user.findUnique({ where: { email } });
+
+  // Don't reveal if email exists or not — always return same message
+  if (!user)
+    return { message: "If that email exists, a reset link has been sent" };
+
+  // Delete any existing reset token for this user
+  await prisma.passwordResetToken.deleteMany({
+    where: { userId: user.id },
+  });
+
+  const token = crypto.randomBytes(32).toString("hex");
+
+  await prisma.passwordResetToken.create({
+    data: {
+      userId: user.id,
+      token,
+      expiresAt: new Date(Date.now() + 1000 * 60 * 15), // 15 minutes
+    },
+  });
+
+  await sendPasswordResetEmail(user.email, token, user.role);
+
+  return { message: "If that email exists, a reset link has been sent" };
+};
+
+export const resetPassword = async (token, newPassword) => {
+  const record = await prisma.passwordResetToken.findUnique({
+    where: { token },
+  });
+
+  if (!record) throw new Error("Invalid or expired token");
+
+  if (record.expiresAt < new Date()) {
+    await prisma.passwordResetToken.delete({ where: { token } });
+    throw new Error("Token expired");
+  }
+
+  const hashed = await bcrypt.hash(newPassword, 10);
+
+  await prisma.user.update({
+    where: { id: record.userId },
+    data: { password: hashed },
+  });
+
+  await prisma.passwordResetToken.delete({ where: { token } });
+
+  return { message: "Password reset successfully" };
 };
