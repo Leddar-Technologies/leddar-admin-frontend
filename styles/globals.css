@@ -1,0 +1,55 @@
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Playfair+Display:wght@600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --espresso: #1C1412;
+  --leather: #6B3A2A;
+  --gold: #C49A3C;
+  --cream: #FAF7F4;
+  --ink: #1A1A1A;
+  --success: #2D6A4F;
+  --danger: #B42318;
+  --overlay-soft: #FFFFFF12;
+  --overlay-strong: #FFFFFF22;
+}
+
+html,
+body,
+#__next {
+  height: 100%;
+}
+
+body {
+  @apply bg-cream text-ink font-body antialiased;
+  background-image:
+    radial-gradient(circle at 15% 20%, rgba(196, 154, 60, 0.10), transparent 32%),
+    radial-gradient(circle at 85% 0%, rgba(107, 58, 42, 0.08), transparent 35%);
+}
+
+* {
+  @apply border-neutral-500;
+}
+
+input,
+select,
+textarea {
+  @apply focus:outline-none focus:ring-2 focus:ring-gold/50;
+}
+
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in-up {
+  animation: fade-in-up 400ms ease-out both;
+}
