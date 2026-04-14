@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import Image from 'next/image';
 import { useRouter } from 'next/router';
 import Button from '@/components/ui/Button';
 
@@ -17,7 +18,7 @@ export default function LoginPage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-espresso p-4">
       <div className="w-full max-w-md rounded-xl bg-neutral-50 p-8 shadow-card">
-        <h1 className="font-display text-3xl font-bold text-gold">Leddar</h1>
+        <Image src="/leddar-logo.svg" alt="Leddar" width={180} height={44} priority />
         <p className="mt-1 text-sm text-muted-200">Leddar Administration Panel.</p>
 
         <form className="mt-6 space-y-4" onSubmit={onSubmit}>

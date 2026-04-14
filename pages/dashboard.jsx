@@ -48,7 +48,16 @@ export default function DashboardPage() {
     router.push('/login');
   };
 
-  if (!authorized || !stats) return null;
+  if (!authorized || !stats) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-cream">
+        <div className="flex flex-col items-center gap-3 rounded-xl bg-neutral-50 px-6 py-5 shadow-card">
+          <span className="h-10 w-10 animate-spin rounded-full border-4 border-leather/25 border-t-leather" />
+          <p className="text-sm font-semibold text-ink">Loading dashboard...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <PageWrapper

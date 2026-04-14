@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import Image from 'next/image';
 import { useRouter } from 'next/router';
 import {
   Bell,
@@ -32,7 +33,7 @@ export default function Sidebar({ onNavigate }) {
   return (
     <aside className="h-full w-72 bg-espresso text-neutral-50">
       <div className="border-b border-white/10 px-6 py-6">
-        <p className="font-display text-2xl font-bold text-gold">Leddar</p>
+        <Image src="/leddar-logo.svg" alt="Leddar" width={160} height={40} priority />
         <p className="text-xs text-neutral-500">Administration Panel</p>
       </div>
       <nav className="px-3 py-4">
