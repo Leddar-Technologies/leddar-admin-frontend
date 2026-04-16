@@ -31,6 +31,7 @@ export const registerBrand = async (data) => {
       password: hashed,
       role: "BRAND",
       status: "PENDING",
+      acceptedTermsAt: new Date(),
       brand: {
         create: {
           businessName: data.businessName,
@@ -80,6 +81,7 @@ export const registerArtisan = async (data, files) => {
       email: data.email,
       password: hashed,
       role: "ARTISAN",
+      acceptedTermsAt: new Date(),
       artisan: {
         create: {
           fullName: data.fullName,
@@ -256,7 +258,7 @@ export const forgotPassword = async (email) => {
     data: {
       userId: user.id,
       token,
-      expiresAt: new Date(Date.now() + 1000 * 60 * 15), // 15 minutes
+      expiresAt: new Date(Date.now() + 1000 * 60 * 15), // 15 
     },
   });
 

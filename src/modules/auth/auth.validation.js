@@ -7,6 +7,9 @@ export const registerBrandSchema = z.object({
   productType: z.string(),
   whatsapp: z.string(),
   contactInfo: z.string(),
+  acceptedTerms: z.literal(true, {
+    errorMap: () => ({ message: "You must accept the terms and conditions" }),
+  }),
 });
 
 export const registerArtisanSchema = z.object({
@@ -16,11 +19,15 @@ export const registerArtisanSchema = z.object({
   phone: z.string().optional(),
   whatsapp: z.string(),
   specialty: z.string(),
-  yearsOfExperience: z.number().optional(),
+  yearsOfExperience: z.coerce.number().optional(),
   bio: z.string().optional(),
   city: z.string(),
   state: z.string(),
-  portfolio: z.array(z.string()).min(3),
+  // Note: If portfolio comes as files, Zod might not see them in req.body
+  // but keeping it here for consistency if you're validating the array
+  acceptedTerms: z.literal(true, {
+    errorMap: () => ({ message: "You must accept the terms and conditions" }),
+  }),
 });
 
 export const loginSchema = z.object({

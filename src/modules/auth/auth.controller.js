@@ -2,12 +2,15 @@ import * as service from "./auth.service.js";
 
 export const registerBrand = async (req, res) => {
   try {
-    const { email, password, businessName } = req.body;
+    const { email, password, businessName, acceptedTerms } = req.body;
 
-    if (!email || !password || !businessName) {
+    // Added check for acceptedTerms
+    if (!email || !password || !businessName || acceptedTerms !== true) {
       return res.status(400).json({
         success: false,
-        error: "Missing required fields",
+        error: !acceptedTerms
+          ? "You must accept the terms and conditions"
+          : "Missing required fields",
       });
     }
 
@@ -27,6 +30,16 @@ export const registerBrand = async (req, res) => {
 
 export const registerArtisan = async (req, res) => {
   try {
+    const { acceptedTerms } = req.body;
+
+    // Explicitly validate T&C for Artisans
+    if (acceptedTerms !== true) {
+      return res.status(400).json({
+        success: false,
+        error: "You must accept the terms and conditions",
+      });
+    }
+
     // Pass both the text data and the files to the service
     const result = await service.registerArtisan(req.body, req.files);
 

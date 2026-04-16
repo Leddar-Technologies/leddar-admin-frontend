@@ -72,3 +72,4 @@ export const getMe = async (req, res) => {
     res.status(status).json({ success: false, error: err.message });
   }
 };
+

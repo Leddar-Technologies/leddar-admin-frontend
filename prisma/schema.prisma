@@ -104,6 +104,7 @@ model User {
   id            String     @id @default(uuid())
   email         String     @unique
   password      String
+  acceptedTermsAt  DateTime?
   role          UserRole
   status        UserStatus @default(PENDING)
   emailVerified Boolean    @default(false)
