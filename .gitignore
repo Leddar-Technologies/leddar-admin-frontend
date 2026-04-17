@@ -1,6 +1,9 @@
 # dependencies
 /node_modules
 
+# Secret files
+*.env
+
 # next.js
 /.next/
 /out/
