@@ -1,16 +1,24 @@
 import * as service from "./auth.service.js";
 
+//////////////////////
+// REGISTER BRAND
+//////////////////////
 export const registerBrand = async (req, res) => {
   try {
+    // DEBUG: Log incoming request data to terminal
+    console.log("--- DEBUG: Register Brand Attempt ---");
+    console.log("Body received:", JSON.stringify(req.body, null, 2));
+
     const { email, password, businessName, acceptedTerms } = req.body;
 
-    // Added check for acceptedTerms
+    // Validation Check
     if (!email || !password || !businessName || acceptedTerms !== true) {
+      console.warn("Validation failed: Missing fields or T&C not accepted");
       return res.status(400).json({
         success: false,
         error: !acceptedTerms
           ? "You must accept the terms and conditions"
-          : "Missing required fields",
+          : "Missing required fields (email, password, or business name)",
       });
     }
 
@@ -21,6 +29,9 @@ export const registerBrand = async (req, res) => {
       data: result,
     });
   } catch (err) {
+    console.error("--- DEBUG: Register Brand ERROR ---");
+    console.error("Message:", err.message);
+
     res.status(400).json({
       success: false,
       error: err.message,
@@ -28,11 +39,14 @@ export const registerBrand = async (req, res) => {
   }
 };
 
+//////////////////////
+// REGISTER ARTISAN
+//////////////////////
 export const registerArtisan = async (req, res) => {
   try {
+    console.log("--- DEBUG: Register Artisan Attempt ---");
     const { acceptedTerms } = req.body;
 
-    // Explicitly validate T&C for Artisans
     if (acceptedTerms !== true) {
       return res.status(400).json({
         success: false,
@@ -40,7 +54,7 @@ export const registerArtisan = async (req, res) => {
       });
     }
 
-    // Pass both the text data and the files to the service
+    // Passes req.body (data) and req.files (portfolio images)
     const result = await service.registerArtisan(req.body, req.files);
 
     res.status(201).json({
@@ -48,6 +62,7 @@ export const registerArtisan = async (req, res) => {
       data: result,
     });
   } catch (err) {
+    console.error("--- DEBUG: Register Artisan ERROR ---");
     res.status(400).json({
       success: false,
       error: err.message,
@@ -55,6 +70,47 @@ export const registerArtisan = async (req, res) => {
   }
 };
 
+//////////////////////
+// LOGIN
+//////////////////////
+export const login = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({
+        success: false,
+        error: "Email and password are required",
+      });
+    }
+
+    const result = await service.login(req.body);
+
+    res.json({
+      success: true,
+      data: result,
+    });
+  } catch (err) {
+    let statusCode = 401; // Unauthorized
+
+    // Handle specific status-based blocks
+    if (
+      err.message === "Awaiting admin approval" ||
+      err.message.includes("rejected")
+    ) {
+      statusCode = 403; // Forbidden
+    }
+
+    res.status(statusCode).json({
+      success: false,
+      error: err.message,
+    });
+  }
+};
+
+//////////////////////
+// VERIFY EMAIL
+//////////////////////
 export const verifyEmail = async (req, res) => {
   try {
     const { token } = req.query;
@@ -80,91 +136,18 @@ export const verifyEmail = async (req, res) => {
   }
 };
 
-//   try {
-//     const { email, password } = req.body;
-
-//     if (!email || !password) {
-//       return res.status(400).json({
-//         success: false,
-//         error: "Email and password are required",
-//       });
-//     }
-
-//     const result = await service.login(req.body);
-
-//     res.json({
-//       success: true,
-//       data: result,
-//     });
-//   } catch (err) {
-//     res.status(401).json({
-//       success: false,
-//       error: err.message,
-//     });
-//   }
-// };
-
-// In your auth.controller.js
-export const login = async (req, res) => {
-  try {
-    const { email, password } = req.body;
-
-    // Basic validation before hitting the service
-    if (!email || !password) {
-      return res.status(400).json({
-        success: false,
-        error: "Email and password are required",
-      });
-    }
-
-    const result = await service.login(req.body);
-
-    res.json({
-      success: true,
-      data: result,
-    });
-  } catch (err) {
-    // Default to 401 Unauthorized for general login failures
-    let statusCode = 401;
-
-    // Handle the specific "Awaiting approval" case
-    if (err.message === "Awaiting admin approval") {
-      statusCode = 403; // Forbidden
-    }
-
-    // Handle the case where the account might be rejected
-    else if (err.message.includes("rejected")) {
-      statusCode = 403; // Forbidden
-    }
-
-    res.status(statusCode).json({
-      success: false,
-      error: err.message,
-    });
-  }
-};
-
-export const getMe = async (req, res) => {
-  try {
-    const result = await service.getMe(req.user.userId);
-    res.json({ success: true, data: result });
-  } catch (err) {
-    res.status(404).json({ success: false, error: err.message });
-  }
-};
-
+//////////////////////
+// PASSWORD MANAGEMENT
+//////////////////////
 export const forgotPassword = async (req, res) => {
   try {
     const { email } = req.body;
-
     if (!email) {
       return res
         .status(400)
         .json({ success: false, error: "Email is required" });
     }
-
     const result = await service.forgotPassword(email);
-
     res.json({ success: true, message: result.message });
   } catch (err) {
     res.status(400).json({ success: false, error: err.message });
@@ -192,9 +175,20 @@ export const resetPassword = async (req, res) => {
     }
 
     const result = await service.resetPassword(token, password);
-
     res.json({ success: true, message: result.message });
   } catch (err) {
     res.status(400).json({ success: false, error: err.message });
+  }
+};
+
+//////////////////////
+// UTILS
+//////////////////////
+export const getMe = async (req, res) => {
+  try {
+    const result = await service.getMe(req.user.userId);
+    res.json({ success: true, data: result });
+  } catch (err) {
+    res.status(404).json({ success: false, error: err.message });
   }
 };

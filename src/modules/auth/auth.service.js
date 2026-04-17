@@ -31,7 +31,7 @@ export const registerBrand = async (data) => {
       password: hashed,
       role: "BRAND",
       status: "PENDING",
-      acceptedTermsAt: new Date(),
+      acceptedTerms: data.acceptedTerms,
       brand: {
         create: {
           businessName: data.businessName,
@@ -81,7 +81,7 @@ export const registerArtisan = async (data, files) => {
       email: data.email,
       password: hashed,
       role: "ARTISAN",
-      acceptedTermsAt: new Date(),
+      acceptedTerms: data.acceptedTerms,
       artisan: {
         create: {
           fullName: data.fullName,
