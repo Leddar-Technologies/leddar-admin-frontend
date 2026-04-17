@@ -15,6 +15,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+<<<<<<< Updated upstream
     "@aws-sdk/client-s3": "^3.1020.0",
     "@aws-sdk/client-ses": "^3.1020.0",
     "@aws-sdk/s3-request-presigner": "^3.1020.0",
@@ -32,6 +33,17 @@
     "multer-s3": "^3.0.1",
     "nodemailer": "^8.0.4",
     "zod": "^4.3.6"
+=======
+    "@reduxjs/toolkit": "^2.11.2",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "lucide-react": "^1.8.0",
+    "next": "^14.2.35",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-redux": "^9.2.0",
+    "tailwind-merge": "^3.5.0"
+>>>>>>> Stashed changes
   },
   "devDependencies": {
     "nodemon": "^3.1.14",
