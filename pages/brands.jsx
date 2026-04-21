@@ -1,30 +1,34 @@
+"use client";
+
 import { useEffect, useMemo, useState } from "react";
 import PageWrapper from "@/components/layout/PageWrapper";
 import Table from "@/components/ui/Table";
-import BrandRow from "@/components/admin/BrandRow";
+import BrandRow from "@/components/ui/BrandRow";
 import Spinner from "@/components/ui/Spinner";
 import { getBrands, approveUser, rejectUser } from "@/services/brandsService";
+import { Users, ShieldCheck, Clock, UserX, Search } from "lucide-react";
 
-const tabs = ["All", "Pending Approval", "Verified", "Suspended"];
+const tabs = [
+  { id: "All", label: "All Brands", icon: Users },
+  { id: "Pending Approval", label: "Pending", icon: Clock },
+  { id: "Verified", label: "Verified", icon: ShieldCheck },
+  { id: "Suspended", label: "Suspended", icon: UserX },
+];
 
 export default function BrandsPage() {
   const [activeTab, setActiveTab] = useState("All");
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
 
-  // Updated to fetch data based on the active tab
   const loadBrands = async () => {
     try {
       setLoading(true);
-      // We pass the activeTab to the service so it hits the correct API query
       const data = await getBrands(activeTab);
-
-      // Filter for BRANDS only (if your API returns both)
       const brandOnlyData = Array.isArray(data)
         ? data.filter((user) => user.role === "BRAND")
         : [];
-
       setRows(brandOnlyData);
     } catch (err) {
       console.error("Failed to fetch brands:", err);
@@ -34,113 +38,158 @@ export default function BrandsPage() {
     }
   };
 
-  // Re-run whenever activeTab changes
   useEffect(() => {
     loadBrands();
   }, [activeTab]);
 
   const filteredRows = useMemo(() => {
-    if (!rows || !Array.isArray(rows)) return [];
+    let result = rows;
 
-    // Since the API is now handling the filtering via the 'status' query,
-    // we mostly just return the rows. However, we keep these checks
-    // to ensure the UI is strictly consistent with the tab.
-    if (activeTab === "All") return rows;
-
+    // Internal filtering safety check
     if (activeTab === "Verified")
-      return rows.filter((item) => item.status === "APPROVED");
-
+      result = rows.filter((item) => item.status === "APPROVED");
     if (activeTab === "Suspended")
-      return rows.filter((item) => item.status === "REJECTED");
-
+      result = rows.filter((item) => item.status === "REJECTED");
     if (activeTab === "Pending Approval")
-      return rows.filter((item) => item.status === "PENDING");
+      result = rows.filter((item) => item.status === "PENDING");
 
-    return rows;
-  }, [rows, activeTab]);
+    // Search filter
+    if (searchQuery) {
+      result = result.filter(
+        (item) =>
+          item.businessName
+            ?.toLowerCase()
+            .includes(searchQuery.toLowerCase()) ||
+          item.email?.toLowerCase().includes(searchQuery.toLowerCase()),
+      );
+    }
+
+    return result;
+  }, [rows, activeTab, searchQuery]);
 
   const handleAction = async (id, actionType) => {
     try {
       setActionLoading(true);
-
       const type = actionType.toLowerCase();
-      if (type === "approve" || type === "active") {
-        await approveUser(id);
-      } else if (type === "reject" || type === "suspended") {
-        await rejectUser(id);
-      }
-
-      // Refresh data to move the item to its new tab
+      if (type === "approve" || type === "active") await approveUser(id);
+      else if (type === "reject" || type === "suspended") await rejectUser(id);
       await loadBrands();
     } catch (err) {
-      alert(err || "An error occurred while updating the user status.");
+      console.error(err);
     } finally {
       setActionLoading(false);
     }
   };
 
   return (
-    <PageWrapper title="Brand Management">
-      {/* Tabs */}
-      <div className="mb-6 flex flex-wrap gap-2">
-        {tabs.map((tab) => (
-          <button
-            key={tab}
-            type="button"
-            className={`rounded-xl px-5 py-2.5 text-xs font-bold uppercase tracking-wider transition-all ${
-              activeTab === tab
-                ? "bg-[#6B3A2A] text-white shadow-md"
-                : "bg-white text-[#A39289] border border-[#E8DED5] hover:bg-[#FCF9F7]"
-            }`}
-            onClick={() => setActiveTab(tab)}
-          >
-            {tab}
-          </button>
-        ))}
+    <PageWrapper
+      title="Brand Management"
+      subtitle="Review and manage brand partnerships"
+    >
+      {/* Search & Tabs Header */}
+      <div className="mb-8 flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex flex-wrap items-center gap-2 rounded-2xl bg-white p-1.5 shadow-sm border border-[#E8DED5]">
+          {tabs.map((tab) => {
+            const Icon = tab.icon;
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-bold transition-all duration-200 ${
+                  isActive
+                    ? "bg-leather text-white shadow-md shadow-leather/20"
+                    : "text-[#6A5B54] hover:bg-atmosphere hover:text-leather"
+                }`}
+              >
+                <Icon
+                  className={`h-4 w-4 ${isActive ? "text-gold" : "text-[#A39289]"}`}
+                />
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Search Bar */}
+        <div className="relative group max-w-sm w-full">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-[#A39289] group-focus-within:text-leather transition-colors" />
+          <input
+            type="text"
+            placeholder="Search brands..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full pl-11 pr-4 py-2.5 bg-white border border-[#E8DED5] rounded-xl text-sm outline-none focus:ring-2 focus:ring-leather/10 focus:border-leather transition-all"
+          />
+        </div>
+      </div>
+
+      {/* Stats Summary (Mini) */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8 text-xs font-bold uppercase tracking-widest text-[#A39289]">
+        <div className="bg-white p-4 rounded-2xl border border-[#E8DED5] flex flex-col gap-1">
+          <span>Total Brands</span>
+          <span className="text-xl text-ink">{filteredRows.length}</span>
+        </div>
+        {/* ... Add more mini stats here if needed */}
       </div>
 
       {/* Table Section */}
-      <div className="relative overflow-hidden rounded-2xl border border-[#E8DED5] bg-white shadow-sm">
+      <div className="relative overflow-hidden rounded-3xl border border-[#E8DED5] bg-white shadow-xl shadow-ink/5">
         {loading ? (
-          <div className="flex h-64 items-center justify-center">
-            <Spinner size="lg" />
+          <div className="flex h-96 items-center justify-center">
+            <Spinner size="lg" color="leather" />
           </div>
         ) : (
-          <Table
-            headers={[
-              "Business Name",
-              "Product Type",
-              "WhatsApp",
-              "Status",
-              "Registration Date",
-              "Actions",
-            ]}
-          >
-            {filteredRows.length > 0 ? (
-              filteredRows.map((brand) => (
-                <BrandRow
-                  key={brand.id}
-                  brand={brand}
-                  onAction={handleAction}
-                />
-              ))
-            ) : (
-              <tr>
-                <td
-                  colSpan="6"
-                  className="py-20 text-center text-sm text-[#A39289]"
-                >
-                  No {activeTab.toLowerCase()} brands found.
-                </td>
-              </tr>
-            )}
-          </Table>
+          <div className="overflow-x-auto">
+            <Table
+              headers={[
+                "Business Details",
+                "Product Category",
+                "Contact",
+                "Status",
+                "Joined Date",
+                "Actions",
+              ]}
+            >
+              {filteredRows.length > 0 ? (
+                filteredRows.map((brand) => (
+                  <BrandRow
+                    key={brand.id}
+                    brand={brand}
+                    onAction={handleAction}
+                  />
+                ))
+              ) : (
+                <tr>
+                  <td colSpan="6" className="py-32 text-center">
+                    <div className="flex flex-col items-center gap-3">
+                      <div className="w-16 h-16 bg-atmosphere rounded-full flex items-center justify-center mb-2">
+                        <Users className="w-8 h-8 text-[#D7CBC1]" />
+                      </div>
+                      <h3 className="text-lg font-bold text-ink">
+                        No brands found
+                      </h3>
+                      <p className="text-sm text-[#A39289] max-w-[240px]">
+                        We couldn't find any brands in the{" "}
+                        <strong>{activeTab}</strong> category.
+                      </p>
+                    </div>
+                  </td>
+                </tr>
+              )}
+            </Table>
+          </div>
         )}
 
         {/* Action Loading Overlay */}
         {actionLoading && (
-          <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/50 backdrop-blur-[1px]">
-            <Spinner size="md" />
+          <div className="absolute inset-0 z-20 flex items-center justify-center bg-white/60 backdrop-blur-[2px] transition-all">
+            <div className="bg-white p-6 rounded-2xl shadow-2xl flex flex-col items-center gap-3">
+              <Spinner size="md" color="leather" />
+              <p className="text-xs font-bold text-ink uppercase tracking-widest">
+                Updating Status
+              </p>
+            </div>
           </div>
         )}
       </div>
