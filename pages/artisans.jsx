@@ -5,8 +5,13 @@ import PageWrapper from "@/components/layout/PageWrapper";
 import Table from "@/components/ui/Table";
 import ArtisanRow from "@/components/admin/ArtisanRow";
 import Spinner from "@/components/ui/Spinner";
-import { getArtisans, updateArtisanStatus } from "@/services/artisansService";
+import {
+  getArtisans,
+  approveArtisan,
+  rejectArtisan,
+} from "@/services/artisansService";
 import { Users, ShieldCheck, Clock, UserX, Search, Hammer } from "lucide-react";
+import { toast } from "react-hot-toast";
 
 const tabs = [
   { id: "All", label: "All Artisans", icon: Users },
@@ -25,14 +30,11 @@ export default function ArtisansPage() {
   const loadArtisans = async () => {
     try {
       setLoading(true);
-      const data = await getArtisans();
-      // Filter for Artisan role safety
-      const artisanData = Array.isArray(data)
-        ? data.filter((user) => user.role === "ARTISAN")
-        : [];
-      setRows(artisanData);
+      const data = await getArtisans(activeTab);
+      setRows(data);
     } catch (err) {
       console.error("Failed to fetch artisans:", err);
+      toast.error("Failed to load artisans");
       setRows([]);
     } finally {
       setLoading(false);
@@ -41,48 +43,34 @@ export default function ArtisansPage() {
 
   useEffect(() => {
     loadArtisans();
-  }, []);
+  }, [activeTab]);
 
   const filteredRows = useMemo(() => {
-    let result = rows;
+    if (!searchQuery) return rows;
 
-    // Tab Filtering
-    if (activeTab === "Verified") {
-      result = rows.filter(
-        (item) => item.kycStatus === "Verified" || item.status === "APPROVED",
-      );
-    } else if (activeTab === "Suspended") {
-      result = rows.filter(
-        (item) => item.status === "Suspended" || item.status === "REJECTED",
-      );
-    } else if (activeTab === "Pending Approval") {
-      result = rows.filter(
-        (item) =>
-          item.status === "Pending Approval" || item.status === "PENDING",
-      );
-    }
+    const query = searchQuery.toLowerCase();
+    return rows.filter(
+      (item) =>
+        item.fullName?.toLowerCase().includes(query) ||
+        item.specialty?.toLowerCase().includes(query) ||
+        item.email?.toLowerCase().includes(query),
+    );
+  }, [rows, searchQuery]);
 
-    // Search filter (Name or Specialty)
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      result = result.filter(
-        (item) =>
-          item.fullName?.toLowerCase().includes(query) ||
-          item.specialty?.toLowerCase().includes(query) ||
-          item.email?.toLowerCase().includes(query),
-      );
-    }
-
-    return result;
-  }, [rows, activeTab, searchQuery]);
-
-  const handleAction = async (id, status) => {
+  const handleAction = async (id, actionType) => {
     try {
       setActionLoading(true);
-      await updateArtisanStatus(id, status);
+      if (actionType === "approve") {
+        await approveArtisan(id);
+        toast.success("Artisan verified successfully");
+      } else {
+        await rejectArtisan(id);
+        toast.error("Artisan status updated to suspended");
+      }
       await loadArtisans();
     } catch (err) {
       console.error("Action failed:", err);
+      toast.error("Operation failed. Please try again.");
     } finally {
       setActionLoading(false);
     }
@@ -136,11 +124,7 @@ export default function ArtisansPage() {
         <div className="bg-white p-4 rounded-2xl border border-[#E8DED5] flex flex-col gap-1">
           <span>Active Artisans</span>
           <span className="text-xl text-ink">
-            {
-              rows.filter(
-                (r) => r.status === "APPROVED" || r.kycStatus === "Verified",
-              ).length
-            }
+            {rows.filter((r) => r.status === "APPROVED").length}
           </span>
         </div>
         <div className="bg-white p-4 rounded-2xl border border-[#E8DED5] flex flex-col gap-1">
@@ -162,8 +146,7 @@ export default function ArtisansPage() {
                 "Full Name",
                 "Specialty",
                 "WhatsApp",
-                "KYC Status",
-                "Portfolio",
+                "Status",
                 "Registration Date",
                 "Actions",
               ]}
@@ -178,7 +161,7 @@ export default function ArtisansPage() {
                 ))
               ) : (
                 <tr>
-                  <td colSpan="7" className="py-32 text-center">
+                  <td colSpan="6" className="py-32 text-center">
                     <div className="flex flex-col items-center gap-3">
                       <div className="w-16 h-16 bg-atmosphere rounded-full flex items-center justify-center mb-2">
                         <Hammer className="w-8 h-8 text-[#D7CBC1]" />
@@ -187,8 +170,8 @@ export default function ArtisansPage() {
                         No artisans found
                       </h3>
                       <p className="text-sm text-[#A39289] max-w-[240px]">
-                        We couldn't find any artisans matching your criteria in
-                        the <strong>{activeTab}</strong> category.
+                        We couldn't find anyone in the{" "}
+                        <strong>{activeTab}</strong> category.
                       </p>
                     </div>
                   </td>

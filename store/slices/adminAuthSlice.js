@@ -9,7 +9,6 @@ export const loginAdmin = createAsyncThunk(
   "adminAuth/login",
   async (credentials, { rejectWithValue }) => {
     try {
-      // Call the named export from authService
       const data = await login(credentials);
 
       // Role Guard: Ensure the user is actually an ADMIN
@@ -19,7 +18,6 @@ export const loginAdmin = createAsyncThunk(
 
       return data;
     } catch (err) {
-      // Passes the error message to action.payload in the rejected case
       return rejectWithValue(err.message || "An unexpected error occurred");
     }
   },
@@ -28,39 +26,47 @@ export const loginAdmin = createAsyncThunk(
 const adminAuthSlice = createSlice({
   name: "adminAuth",
   initialState: {
-    admin: null,
+    admin:
+      typeof window !== "undefined"
+        ? JSON.parse(localStorage.getItem("admin"))
+        : null,
     loading: false,
     error: null,
   },
   reducers: {
-    // Call this to manually clear the admin state (logout)
     logoutAdmin: (state) => {
       state.admin = null;
       state.error = null;
       state.loading = false;
+      // 🔥 Clear storage on logout
+      localStorage.removeItem("token");
+      localStorage.removeItem("admin");
     },
-    // Useful for clearing errors when the user starts typing again
     clearAuthError: (state) => {
       state.error = null;
     },
   },
   extraReducers: (builder) => {
     builder
-      // Handle Loading State
       .addCase(loginAdmin.pending, (state) => {
         state.loading = true;
         state.error = null;
       })
-      // Handle Success State
       .addCase(loginAdmin.fulfilled, (state, action) => {
         state.loading = false;
-        state.admin = action.payload; // This is the user object from the API
+        state.admin = action.payload;
         state.error = null;
+
+        // 🔥 Persist the token and admin data
+        // Ensure your API returns the token inside the data object
+        if (action.payload.token) {
+          localStorage.setItem("token", action.payload.token);
+          localStorage.setItem("admin", JSON.stringify(action.payload));
+        }
       })
-      // Handle Error State
       .addCase(loginAdmin.rejected, (state, action) => {
         state.loading = false;
-        state.error = action.payload; // This is the error message from rejectWithValue
+        state.error = action.payload;
         state.admin = null;
       });
   },
