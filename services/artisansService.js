@@ -45,10 +45,14 @@ export async function getArtisans(tabStatus = "All") {
           specialty: user.artisan?.specialty || "N/A",
           whatsapp: user.artisan?.whatsappNumber || "N/A",
           location: user.artisan?.city
-            ? `${user.artisan.city}, ${user.artisan.state}`
+            ? `${user.artisan.city}${user.artisan.state ? ", " + user.artisan.state : ""}`
             : "N/A",
           registrationDate: user.createdAt
-            ? new Date(user.createdAt).toLocaleDateString()
+            ? new Date(user.createdAt).toLocaleDateString("en-GB", {
+                day: "numeric",
+                month: "short",
+                year: "numeric",
+              })
             : "N/A",
           kycStatus:
             user.status === "APPROVED"
@@ -59,10 +63,11 @@ export async function getArtisans(tabStatus = "All") {
           portfolio: user.artisan?.portfolio || [],
         }));
     }
+
     return [];
   } catch (error) {
     console.error("Error fetching artisans:", error);
-    return [];
+    throw error;
   }
 }
 
