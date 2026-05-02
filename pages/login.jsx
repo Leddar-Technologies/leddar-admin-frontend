@@ -20,13 +20,9 @@ export default function LoginPage() {
   const [redirecting, setRedirecting] = useState(false);
   const [showPassword, setShowPassword] = useState(false); // State for toggle
 
-  useEffect(() => {
-    setIsMounted(true);
-    const session = getSession();
-    if (session?.token && session?.role === "ADMIN") {
-      router.replace("/dashboard");
-    }
-  }, [router]);
+ useEffect(() => {
+   setIsMounted(true);
+ }, []);
 
   useEffect(() => {
     if (admin && (admin.role === "ADMIN" || admin.token)) {
