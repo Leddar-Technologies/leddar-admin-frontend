@@ -119,3 +119,8 @@ export async function getAdminMe() {
     return null;
   }
 }
+
+export const getBrandById = async (id) => {
+  const res = await axios.get(`${BASE_URL}/admin/get-brand/${id}`, getAuthHeaders());
+  return res.data.data;
+};

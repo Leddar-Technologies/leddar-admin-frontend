@@ -26,9 +26,11 @@ export default function BrandsPage() {
     try {
       setLoading(true);
       const data = await getBrands(activeTab);
+      // Ensure data is an array and filter for brands only
       const brandOnlyData = Array.isArray(data)
         ? data.filter((user) => user.role === "BRAND")
         : [];
+        console.log("First brand:", brandOnlyData[0]);
       setRows(brandOnlyData);
     } catch (err) {
       console.error("Failed to fetch brands:", err);
@@ -43,24 +45,27 @@ export default function BrandsPage() {
   }, [activeTab]);
 
   const filteredRows = useMemo(() => {
-    let result = rows;
+    let result = [...rows];
 
-    // Internal filtering safety check
+    // Status filtering
     if (activeTab === "Verified")
-      result = rows.filter((item) => item.status === "APPROVED");
+      result = result.filter(
+        (item) => item.status === "APPROVED" || item.status === "ACTIVE",
+      );
     if (activeTab === "Suspended")
-      result = rows.filter((item) => item.status === "REJECTED");
+      result = result.filter(
+        (item) => item.status === "REJECTED" || item.status === "SUSPENDED",
+      );
     if (activeTab === "Pending Approval")
-      result = rows.filter((item) => item.status === "PENDING");
+      result = result.filter((item) => item.status === "PENDING");
 
     // Search filter
     if (searchQuery) {
+      const q = searchQuery.toLowerCase();
       result = result.filter(
         (item) =>
-          item.businessName
-            ?.toLowerCase()
-            .includes(searchQuery.toLowerCase()) ||
-          item.email?.toLowerCase().includes(searchQuery.toLowerCase()),
+          item.businessName?.toLowerCase().includes(q) ||
+          item.email?.toLowerCase().includes(q),
       );
     }
 
@@ -72,10 +77,11 @@ export default function BrandsPage() {
       setActionLoading(true);
       const type = actionType.toLowerCase();
       if (type === "approve" || type === "active") await approveUser(id);
-      else if (type === "reject" || type === "suspended") await rejectUser(id);
+      else if (type === "reject" || type === "suspended" || type === "rejected")
+        await rejectUser(id);
       await loadBrands();
     } catch (err) {
-      console.error(err);
+      console.error("Action failed:", err);
     } finally {
       setActionLoading(false);
     }
@@ -86,7 +92,6 @@ export default function BrandsPage() {
       title="Brand Management"
       subtitle="Review and manage brand partnerships"
     >
-      {/* Search & Tabs Header */}
       <div className="mb-8 flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex flex-wrap items-center gap-2 rounded-2xl bg-white p-1.5 shadow-sm border border-[#E8DED5]">
           {tabs.map((tab) => {
@@ -111,7 +116,6 @@ export default function BrandsPage() {
           })}
         </div>
 
-        {/* Search Bar */}
         <div className="relative group max-w-sm w-full">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-[#A39289] group-focus-within:text-leather transition-colors" />
           <input
@@ -124,16 +128,6 @@ export default function BrandsPage() {
         </div>
       </div>
 
-      {/* Stats Summary (Mini) */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8 text-xs font-bold uppercase tracking-widest text-[#A39289]">
-        <div className="bg-white p-4 rounded-2xl border border-[#E8DED5] flex flex-col gap-1">
-          <span>Total Brands</span>
-          <span className="text-xl text-ink">{filteredRows.length}</span>
-        </div>
-        {/* ... Add more mini stats here if needed */}
-      </div>
-
-      {/* Table Section */}
       <div className="relative overflow-hidden rounded-3xl border border-[#E8DED5] bg-white shadow-xl shadow-ink/5">
         {loading ? (
           <div className="flex h-96 items-center justify-center">
@@ -154,7 +148,7 @@ export default function BrandsPage() {
               {filteredRows.length > 0 ? (
                 filteredRows.map((brand) => (
                   <BrandRow
-                    key={brand.id}
+                    key={brand.id || brand._id}
                     brand={brand}
                     onAction={handleAction}
                   />
@@ -169,9 +163,8 @@ export default function BrandsPage() {
                       <h3 className="text-lg font-bold text-ink">
                         No brands found
                       </h3>
-                      <p className="text-sm text-[#A39289] max-w-[240px]">
-                        We couldn't find any brands in the{" "}
-                        <strong>{activeTab}</strong> category.
+                      <p className="text-sm text-[#A39289]">
+                        Try adjusting your search or filters.
                       </p>
                     </div>
                   </td>
@@ -181,9 +174,8 @@ export default function BrandsPage() {
           </div>
         )}
 
-        {/* Action Loading Overlay */}
         {actionLoading && (
-          <div className="absolute inset-0 z-20 flex items-center justify-center bg-white/60 backdrop-blur-[2px] transition-all">
+          <div className="absolute inset-0 z-20 flex items-center justify-center bg-white/60 backdrop-blur-[2px]">
             <div className="bg-white p-6 rounded-2xl shadow-2xl flex flex-col items-center gap-3">
               <Spinner size="md" color="leather" />
               <p className="text-xs font-bold text-ink uppercase tracking-widest">

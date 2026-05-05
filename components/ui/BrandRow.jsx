@@ -3,10 +3,9 @@ import {
   X,
   ExternalLink,
   MessageCircle,
-  Ban,
-  RotateCcw,
 } from "lucide-react";
 import moment from "moment";
+import Link from "next/link";
 
 export default function BrandRow({ brand, onAction }) {
   const statusStyles = {
@@ -16,17 +15,13 @@ export default function BrandRow({ brand, onAction }) {
   };
 
   const handleButtonClick = (e, action) => {
-    // This prevents the row from navigating or triggering other links
     e.preventDefault();
     e.stopPropagation();
     onAction(brand.id, action);
   };
 
   return (
-    <tr
-      className="group hover:bg-atmosphere/30 transition-colors border-b border-[#F4EFEA] last:border-0 cursor-default"
-      onClick={(e) => e.preventDefault()} // Disables row-wide navigation
-    >
+    <tr className="group hover:bg-atmosphere/30 transition-colors border-b border-[#F4EFEA] last:border-0 cursor-default">
       <td className="px-6 py-5">
         <div className="flex flex-col">
           <span className="font-bold text-ink">
@@ -41,12 +36,12 @@ export default function BrandRow({ brand, onAction }) {
       </td>
 
       <td className="px-6 py-5 text-sm text-green-600 font-bold">
-        <a
+        < a
           href={`https://wa.me/${brand.whatsapp}`}
           target="_blank"
           rel="noreferrer"
           className="flex items-center gap-1 hover:underline"
-          onClick={(e) => e.stopPropagation()} // Let the WhatsApp link work separately
+          onClick={(e) => e.stopPropagation()}
         >
           <MessageCircle className="w-4 h-4" /> WhatsApp
         </a>
@@ -66,7 +61,6 @@ export default function BrandRow({ brand, onAction }) {
 
       <td className="px-6 py-5">
         <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-          {/* Always show APPROVE/ACTIVATE if not currently Approved */}
           {brand.status !== "APPROVED" && (
             <button
               onClick={(e) => handleButtonClick(e, "approve")}
@@ -77,7 +71,6 @@ export default function BrandRow({ brand, onAction }) {
             </button>
           )}
 
-          {/* Always show REJECT/SUSPEND if not currently Rejected */}
           {brand.status !== "REJECTED" && (
             <button
               onClick={(e) => handleButtonClick(e, "reject")}
@@ -88,13 +81,14 @@ export default function BrandRow({ brand, onAction }) {
             </button>
           )}
 
-          <button
-            className="p-2 bg-atmosphere text-[#6A5B54] rounded-lg hover:bg-[#E8DED5] transition-all"
+          <Link
+            href={`/brands/${brand.id}`}
             onClick={(e) => e.stopPropagation()}
+            className="p-2 bg-atmosphere text-[#6A5B54] rounded-lg hover:bg-[#E8DED5] transition-all"
             title="View Details"
           >
             <ExternalLink className="w-4 h-4" />
-          </button>
+          </Link>
         </div>
       </td>
     </tr>
