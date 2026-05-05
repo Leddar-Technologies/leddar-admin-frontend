@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import Image from "next/image";
 import { useRouter } from "next/router";
 import { useDispatch, useSelector } from "react-redux";
+import { Eye, EyeOff } from "lucide-react"; // Import Icons
 
 import { getSession } from "../services/authService";
 import { loginAdmin } from "../store/slices/adminAuthSlice";
@@ -17,25 +18,18 @@ export default function LoginPage() {
   const [form, setForm] = useState({ email: "", password: "" });
   const [isMounted, setIsMounted] = useState(false);
   const [redirecting, setRedirecting] = useState(false);
+  const [showPassword, setShowPassword] = useState(false); // State for toggle
 
-  // 1. Initial Mount Check
-  useEffect(() => {
-    setIsMounted(true);
-    const session = getSession();
-    if (session?.token && session?.role === "ADMIN") {
-      router.replace("/dashboard");
-    }
-  }, [router]);
+ useEffect(() => {
+   setIsMounted(true);
+ }, []);
 
-  // 2. Handle successful login with 2-second delay
   useEffect(() => {
     if (admin && (admin.role === "ADMIN" || admin.token)) {
       setRedirecting(true);
-
       const timer = setTimeout(() => {
         router.push("/dashboard");
       }, 2000);
-
       return () => clearTimeout(timer);
     }
   }, [admin, router]);
@@ -48,7 +42,6 @@ export default function LoginPage() {
   if (!isMounted) return null;
 
   const isBusy = loading || redirecting;
-  // Get dynamic year
   const currentYear = new Date().getFullYear();
 
   return (
@@ -90,17 +83,27 @@ export default function LoginPage() {
             <label className="block text-[11px] font-bold uppercase tracking-wider text-[#5A4B44] mb-2 ml-1">
               Secure Password
             </label>
-            <input
-              type="password"
-              required
-              disabled={isBusy}
-              value={form.password}
-              onChange={(e) =>
-                setForm((prev) => ({ ...prev, password: e.target.value }))
-              }
-              className="w-full rounded-xl border border-[#D7CBC1] bg-[#FCF9F7] px-4 py-3.5 outline-none focus:ring-2 focus:ring-[#6B3A2A] transition-all disabled:opacity-60"
-              placeholder="••••••••"
-            />
+            <div className="relative">
+              <input
+                type={showPassword ? "text" : "password"} // Dynamic type
+                required
+                disabled={isBusy}
+                value={form.password}
+                onChange={(e) =>
+                  setForm((prev) => ({ ...prev, password: e.target.value }))
+                }
+                className="w-full rounded-xl border border-[#D7CBC1] bg-[#FCF9F7] pl-4 pr-12 py-3.5 outline-none focus:ring-2 focus:ring-[#6B3A2A] transition-all disabled:opacity-60"
+                placeholder="••••••••"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                disabled={isBusy}
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-[#A39289] hover:text-[#6B3A2A] transition-colors disabled:opacity-50"
+              >
+                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
+            </div>
           </div>
 
           {error && (
