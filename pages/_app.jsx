@@ -1,5 +1,7 @@
 import "@/styles/globals.css";
 import { useEffect, useState } from "react";
+import Head from "next/head";
+
 import { Provider } from "react-redux";
 import { store } from "../store";
 
@@ -33,9 +35,16 @@ export default function App({ Component, pageProps }) {
   }, []);
 
   return (
-    <Provider store={store}>
-      {/* If client is not ready, show loader, otherwise show the page */}
-      {isClientReady ? <Component {...pageProps} /> : <AppBootstrapLoader />}
-    </Provider>
+    <>
+      <Head>
+        <title>Leddar Admin</title>
+        <link rel="icon" type="image/jpeg" href="/favicon.jpeg" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+      </Head>
+      <Provider store={store}>
+        {/* If client is not ready, show loader, otherwise show the page */}
+        {isClientReady ? <Component {...pageProps} /> : <AppBootstrapLoader />}
+      </Provider>
+    </>
   );
 }

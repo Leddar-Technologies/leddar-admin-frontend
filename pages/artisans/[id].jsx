@@ -1,114 +1,346 @@
-import { useEffect, useMemo, useState } from 'react';
-import { useRouter } from 'next/router';
-import PageWrapper from '@/components/layout/PageWrapper';
-import Badge from '@/components/ui/Badge';
-import Table from '@/components/ui/Table';
-import { formatCurrency, formatDate } from '@/lib/utils';
-import { getArtisanById } from '@/services/artisansService';
-import { getJobs } from '@/services/jobsService';
-import { getPayments } from '@/services/paymentsService';
-import { calculateCommissionBreakdown, getCommissionSettings } from '@/services/commissionService';
+"use client";
+
+import { useEffect, useState } from "react";
+import { useRouter } from "next/router";
+import PageWrapper from "@/components/layout/PageWrapper";
+import Badge from "@/components/ui/Badge";
+import Table from "@/components/ui/Table";
+import Spinner from "@/components/ui/Spinner";
+import { formatCurrency, formatDate } from "@/lib/utils";
+import {
+  getArtisanById,
+  approveArtisan,
+  rejectArtisan,
+} from "@/services/artisansService";
+import {
+  Mail,
+  Phone,
+  MapPin,
+  Shield,
+  CreditCard,
+  Briefcase,
+  Hammer,
+  Image as ImageIcon,
+  CheckCircle2,
+  XCircle,
+  Loader2,
+} from "lucide-react";
 
 export default function ArtisanProfilePage() {
   const router = useRouter();
   const { id } = router.query;
   const [artisan, setArtisan] = useState(null);
-  const [jobs, setJobs] = useState([]);
-  const [payments, setPayments] = useState([]);
-  const [settings, setSettings] = useState(null);
-  const [tab, setTab] = useState('Job History');
+  const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState("Job History");
+  const [actionLoading, setActionLoading] = useState(null);
 
   useEffect(() => {
     if (!id) return;
-
     async function loadData() {
-      const [artisanData, jobsData, paymentData, settingsData] = await Promise.all([
-        getArtisanById(id),
-        getJobs(),
-        getPayments(),
-        getCommissionSettings(),
-      ]);
-
-      setArtisan(artisanData);
-      setJobs(jobsData.filter((job) => job.assignedArtisan === artisanData?.fullName));
-      setPayments(paymentData.filter((payment) => payment.artisan === artisanData?.fullName));
-      setSettings(settingsData);
+      try {
+        setLoading(true);
+        const data = await getArtisanById(id);
+        setArtisan(data);
+      } catch (err) {
+        console.error("Failed to load artisan profile", err);
+      } finally {
+        setLoading(false);
+      }
     }
-
     loadData();
   }, [id]);
 
-  const paymentRows = useMemo(() => {
-    if (!settings) return [];
+  const handleAction = async (type) => {
+    if (!artisan?.userId) return;
+    setActionLoading(type);
+    try {
+      if (type === "approve") {
+        await approveArtisan(artisan.userId);
+        setArtisan((prev) => ({ ...prev, status: "APPROVED" })); // ✅ instant update
+      } else {
+        await rejectArtisan(artisan.userId);
+        setArtisan((prev) => ({ ...prev, status: "REJECTED" })); // ✅ instant update
+      }
+    } catch (err) {
+      console.error("Action failed:", err);
+    } finally {
+      setActionLoading(null);
+    }
+  };
 
-    return payments.map((payment) => {
-      const breakdown = calculateCommissionBreakdown(payment.fullAmount, payment.type, settings);
-      return { ...payment, breakdown };
-    });
-  }, [payments, settings]);
+  if (loading)
+    return (
+      <PageWrapper title="Loading Artisan...">
+        <div className="flex h-96 items-center justify-center">
+          <Spinner size="lg" color="leather" />
+        </div>
+      </PageWrapper>
+    );
 
-  if (!artisan) return null;
+  if (!artisan)
+    return (
+      <PageWrapper title="Error">
+        <div className="p-8 text-center bg-white rounded-2xl border border-[#E8DED5]">
+          <p className="text-[#A39289]">Artisan not found or invalid ID.</p>
+        </div>
+      </PageWrapper>
+    );
+
+  const stats = [
+    {
+      label: "Total Jobs",
+      value: artisan.jobs?.length || 0,
+      icon: Briefcase,
+      color: "text-blue-600",
+    },
+    {
+      label: "Total Earnings",
+      value: formatCurrency(
+        artisan.payments?.reduce((acc, curr) => acc + (curr.amount || 0), 0) ||
+          0,
+      ),
+      icon: CreditCard,
+      color: "text-emerald-600",
+    },
+    {
+      label: "KYC Status",
+      value: artisan.kycStatus || "NOT_STARTED",
+      icon: Shield,
+      color: "text-leather",
+    },
+  ];
+
+  const statusVariant =
+    artisan.status === "APPROVED"
+      ? "success"
+      : artisan.status === "REJECTED"
+        ? "destructive"
+        : "warning";
 
   return (
-    <PageWrapper title="Artisan Profile">
-      <section className="rounded-xl bg-neutral-50 p-6 shadow-card">
-        <h3 className="font-display text-xl font-bold text-ink">{artisan.fullName}</h3>
-        <div className="mt-3 grid gap-2 text-sm text-muted-300 sm:grid-cols-2">
-          <p>Specialty: {artisan.specialty}</p>
-          <p>WhatsApp: {artisan.whatsapp}</p>
-          <p>Bank Account: {artisan.bankAccount}</p>
-          <p>Joined: {formatDate(artisan.registrationDate)}</p>
-          <p>Status: <Badge>{artisan.status}</Badge></p>
-          <p>KYC: <Badge>{artisan.kycStatus}</Badge></p>
-        </div>
-      </section>
-
-      <section className="mt-6 rounded-xl bg-neutral-50 p-6 shadow-card">
-        <h4 className="font-display text-lg font-bold text-ink">Portfolio</h4>
-        <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
-          {artisan.portfolio.map((image) => (
-            <div key={image} className="aspect-square rounded-xl bg-neutral-200 p-2 text-xs text-muted-200">
-              {image}
+    <PageWrapper
+      title="Artisan Profile"
+      subtitle={`Managing details for ${artisan.fullName}`}
+    >
+      {/* Header Info Card */}
+      <section className="overflow-hidden rounded-3xl border border-[#E8DED5] bg-white shadow-xl shadow-ink/5">
+        <div className="bg-atmosphere/30 p-8 border-b border-[#E8DED5]">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+            <div>
+              <h3 className="font-display text-3xl font-bold text-ink">
+                {artisan.fullName}
+              </h3>
+              <p className="text-[#A39289] mt-1">
+                Artisan since {formatDate(artisan.registrationDate)}
+              </p>
             </div>
-          ))}
+
+            {/* Status + Action Buttons */}
+            <div className="flex flex-wrap items-center gap-3">
+              <Badge variant={statusVariant}>
+                {artisan.status || "PENDING"}
+              </Badge>
+              <Badge variant="outline">ID: {artisan.id?.slice(0, 8)}...</Badge>
+            </div>
+          </div>
+        </div>
+
+        {/* 5-col info grid — email spans 2 cols */}
+        <div className="grid grid-cols-5 gap-6 p-8">
+          {/* Email — col-span-2 */}
+          <div className="col-span-2 flex items-start gap-3 min-w-0">
+            <div className="p-2 bg-atmosphere rounded-lg text-leather flex-shrink-0">
+              <Mail size={18} />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[11px] uppercase tracking-wider font-bold text-[#A39289]">
+                Email Address
+              </p>
+              <p className="text-ink font-medium text-sm break-all leading-snug mt-0.5">
+                {artisan.email || "N/A"}
+              </p>
+            </div>
+          </div>
+
+          {/* WhatsApp */}
+          <div className="flex items-start gap-3 min-w-0">
+            <div className="p-2 bg-atmosphere rounded-lg text-leather flex-shrink-0">
+              <Phone size={18} />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[11px] uppercase tracking-wider font-bold text-[#A39289]">
+                WhatsApp
+              </p>
+              <p className="text-ink font-medium text-sm mt-0.5">
+                {artisan.whatsapp || "N/A"}
+              </p>
+            </div>
+          </div>
+
+          {/* Specialty */}
+          <div className="flex items-start gap-3 min-w-0">
+            <div className="p-2 bg-atmosphere rounded-lg text-leather flex-shrink-0">
+              <Hammer size={18} />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[11px] uppercase tracking-wider font-bold text-[#A39289]">
+                Specialty
+              </p>
+              <p className="text-ink font-medium text-sm mt-0.5">
+                {artisan.specialty || "N/A"}
+              </p>
+            </div>
+          </div>
+
+          {/* Location */}
+          <div className="flex items-start gap-3 min-w-0">
+            <div className="p-2 bg-atmosphere rounded-lg text-leather flex-shrink-0">
+              <MapPin size={18} />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[11px] uppercase tracking-wider font-bold text-[#A39289]">
+                Location
+              </p>
+              <p className="text-ink font-medium text-sm mt-0.5">
+                {artisan.city && artisan.state
+                  ? `${artisan.city}, ${artisan.state}`
+                  : artisan.city || artisan.state || "N/A"}
+              </p>
+            </div>
+          </div>
         </div>
       </section>
 
-      <div className="mt-6 flex gap-2">
-        {['Job History', 'Payment History'].map((label) => (
-          <button
-            key={label}
-            className={`rounded-xl px-4 py-2 text-sm font-semibold ${tab === label ? 'bg-leather text-neutral-50' : 'bg-neutral-100 text-muted-300'}`}
-            onClick={() => setTab(label)}
+      {/* Stats Grid */}
+      <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-3">
+        {stats.map((item) => (
+          <div
+            key={item.label}
+            className="rounded-2xl border border-[#E8DED5] bg-white p-6 shadow-sm"
           >
-            {label}
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-[#A39289]">
+                  {item.label}
+                </p>
+                <p className="mt-1 text-2xl font-bold text-ink">{item.value}</p>
+              </div>
+              <item.icon className={`h-8 w-8 ${item.color} opacity-20`} />
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Portfolio Section */}
+      {artisan.portfolio?.length > 0 && (
+        <div className="mt-8">
+          <div className="flex items-center gap-2 mb-4">
+            <ImageIcon className="w-4 h-4 text-leather" />
+            <h4 className="text-sm font-bold uppercase tracking-widest text-[#A39289]">
+              Portfolio
+            </h4>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {artisan.portfolio.map((item, idx) => (
+              <a
+                key={idx}
+                href={item.url || item}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="aspect-square rounded-2xl overflow-hidden border border-[#E8DED5] bg-atmosphere hover:shadow-md transition-shadow"
+              >
+                <img
+                  src={item.url || item}
+                  alt={`Portfolio ${idx + 1}`}
+                  className="w-full h-full object-cover"
+                />
+              </a>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Tabs Navigation */}
+      <div className="mt-10 mb-6 flex border-b border-[#E8DED5]">
+        {["Job History", "Payment History"].map((t) => (
+          <button
+            key={t}
+            className={`px-6 py-3 text-sm font-bold transition-all duration-200 ${
+              activeTab === t
+                ? "border-b-2 border-leather text-leather"
+                : "text-[#A39289] hover:text-ink"
+            }`}
+            onClick={() => setActiveTab(t)}
+          >
+            {t}
           </button>
         ))}
       </div>
 
-      <div className="mt-4">
-        {tab === 'Job History' ? (
-          <Table headers={['Job ID', 'Job Type', 'Product', 'Deadline', 'Status']}>
-            {jobs.map((job) => (
-              <tr key={job.id}>
-                <td className="px-4 py-3 font-semibold text-ink">{job.id}</td>
-                <td className="px-4 py-3 text-muted-300">{job.jobType}</td>
-                <td className="px-4 py-3 text-muted-300">{job.product}</td>
-                <td className="px-4 py-3 text-muted-300">{formatDate(job.deadline)}</td>
-                <td className="px-4 py-3"><Badge>{job.status}</Badge></td>
+      {/* Data Section */}
+      <div className="rounded-2xl border border-[#E8DED5] bg-white overflow-hidden shadow-sm">
+        {activeTab === "Job History" ? (
+          <Table headers={["Job ID", "Type", "Product", "Deadline", "Status"]}>
+            {artisan.jobs?.length > 0 ? (
+              artisan.jobs.map((job) => (
+                <tr key={job.id} className="hover:bg-atmosphere/30">
+                  <td className="px-6 py-4 font-mono text-xs font-bold text-leather uppercase">
+                    #{job.id.slice(0, 8)}
+                  </td>
+                  <td className="px-6 py-4 text-sm text-ink font-medium">
+                    {job.type}
+                  </td>
+                  <td className="px-6 py-4 text-sm text-ink">
+                    {job.productType}
+                  </td>
+                  <td className="px-6 py-4 text-sm text-[#A39289]">
+                    {job.deadline ? formatDate(job.deadline) : "N/A"}
+                  </td>
+                  <td className="px-6 py-4">
+                    <Badge>{job.status}</Badge>
+                  </td>
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td colSpan="5" className="py-20 text-center text-[#A39289]">
+                  No jobs assigned yet.
+                </td>
               </tr>
-            ))}
+            )}
           </Table>
         ) : (
-          <Table headers={['Order ID', 'Stage 1', 'Stage 2', 'Total']}>
-            {paymentRows.map((payment) => (
-              <tr key={payment.id}>
-                <td className="px-4 py-3 font-semibold text-ink">{payment.orderId}</td>
-                <td className="px-4 py-3 text-success font-semibold">{formatCurrency(payment.breakdown.artisanStage1)}</td>
-                <td className="px-4 py-3 text-success font-semibold">{formatCurrency(payment.breakdown.artisanStage2)}</td>
-                <td className="px-4 py-3 text-muted-300">{formatCurrency(payment.fullAmount)}</td>
+          <Table headers={["Payment Ref", "Stage", "Status", "Amount"]}>
+            {artisan.payments?.length > 0 ? (
+              artisan.payments.map((payment) => (
+                <tr key={payment.id} className="hover:bg-atmosphere/30">
+                  <td className="px-6 py-4 text-xs font-bold text-[#A39289] uppercase font-mono">
+                    {payment.reference || payment.id.slice(0, 8)}
+                  </td>
+                  <td className="px-6 py-4 text-sm text-ink">
+                    {payment.stage?.replace("_", " ")}
+                  </td>
+                  <td className="px-6 py-4">
+                    <Badge
+                      variant={
+                        payment.status === "RECEIVED" ? "success" : "warning"
+                      }
+                    >
+                      {payment.status}
+                    </Badge>
+                  </td>
+                  <td className="px-6 py-4 text-sm font-bold text-emerald-600">
+                    {formatCurrency(payment.amount)}
+                  </td>
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td colSpan="4" className="py-20 text-center text-[#A39289]">
+                  No payment history found.
+                </td>
               </tr>
-            ))}
+            )}
           </Table>
         )}
       </div>

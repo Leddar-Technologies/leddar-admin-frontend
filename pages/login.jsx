@@ -36,7 +36,7 @@ export default function LoginPage() {
 
   const onSubmit = (event) => {
     event.preventDefault();
-    dispatch(loginAdmin(form));
+    dispatch(loginAdmin({ ...form, role: "ADMIN" }));
   };
 
   if (!isMounted) return null;
