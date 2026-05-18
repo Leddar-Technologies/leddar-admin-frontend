@@ -5,6 +5,7 @@ import PageWrapper from "@/components/layout/PageWrapper";
 import Table from "@/components/ui/Table";
 import BrandRow from "@/components/ui/BrandRow";
 import Spinner from "@/components/ui/Spinner";
+import AdminRoute from "../components/auth/AdminRoute";
 import { getBrands, approveUser, rejectUser } from "@/services/brandsService";
 import { Users, ShieldCheck, Clock, UserX, Search } from "lucide-react";
 
@@ -88,6 +89,7 @@ export default function BrandsPage() {
   };
 
   return (
+    <AdminRoute>
     <PageWrapper
       title="Brand Management"
       subtitle="Review and manage brand partnerships"
@@ -186,5 +188,6 @@ export default function BrandsPage() {
         )}
       </div>
     </PageWrapper>
+    </AdminRoute>
   );
 }

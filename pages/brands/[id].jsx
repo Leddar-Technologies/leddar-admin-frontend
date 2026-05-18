@@ -68,7 +68,7 @@ export default function BrandProfilePage() {
     },
     {
       label: "KYC Status",
-      value: brand.user?.kyc?.status || "NOT_STARTED",
+      value: brand.kycStatus || "NOT STARTED",
       icon: Shield,
       color: "text-leather",
     },
@@ -88,16 +88,14 @@ export default function BrandProfilePage() {
                 {brand.businessName}
               </h3>
               <p className="text-[#A39289] mt-1">
-                Brand Member since {formatDate(brand.createdAt)}
+                Brand Member since {formatDate(brand.registrationDate)}
               </p>
             </div>
             <div className="flex gap-3">
               <Badge
-                variant={
-                  brand.user?.status === "APPROVED" ? "success" : "warning"
-                }
+                variant={brand.status === "APPROVED" ? "success" : "warning"}
               >
-                {brand.user?.status}
+                {brand.status}
               </Badge>
               <Badge variant="outline">ID: {brand.id.slice(0, 8)}...</Badge>
             </div>
@@ -113,7 +111,7 @@ export default function BrandProfilePage() {
               <p className="text-[11px] uppercase tracking-wider font-bold text-[#A39289]">
                 Email Address
               </p>
-              <p className="text-ink font-medium">{brand.user?.email}</p>
+              <p className="text-ink font-medium">{brand.email}</p>
             </div>
           </div>
           <div className="flex items-start gap-4">

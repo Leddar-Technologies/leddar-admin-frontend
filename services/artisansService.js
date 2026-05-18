@@ -1,3 +1,104 @@
+// import axios from "axios";
+// import { getSession } from "./authService";
+
+// const BASE_URL = (
+//   process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api/v1"
+// ).replace(/\/$/, "");
+
+// const getAuthHeaders = () => {
+//   const session = getSession();
+//   return {
+//     headers: {
+//       Authorization: `Bearer ${session?.token}`,
+//       "Content-Type": "application/json",
+//     },
+//   };
+// };
+
+// export async function getArtisans(tabStatus = "All") {
+//   try {
+//     const statusMap = {
+//       All: "ALL",
+//       "Pending Approval": "PENDING",
+//       Verified: "APPROVED",
+//       Suspended: "REJECTED",
+//     };
+
+//     const backendStatus = statusMap[tabStatus] || "ALL";
+
+//     const response = await axios.get(
+//       `${BASE_URL}/admin/users?status=${backendStatus}`,
+//       getAuthHeaders(),
+//     );
+
+//     const rawData = response.data.data;
+
+//     if (Array.isArray(rawData)) {
+//       return rawData
+//         .filter((user) => user.role === "ARTISAN")
+//         .map((user) => ({
+//           id: user.id,
+//           email: user.email,
+//           status: user.status,
+//           role: user.role,
+//           fullName: user.artisan?.fullName || "Unknown",
+//           specialty: user.artisan?.specialty || "N/A",
+//           whatsapp: user.artisan?.whatsappNumber || "N/A",
+//           location: user.artisan?.city
+//             ? `${user.artisan.city}${user.artisan.state ? ", " + user.artisan.state : ""}`
+//             : "N/A",
+//           registrationDate: user.createdAt
+//             ? new Date(user.createdAt).toLocaleDateString("en-GB", {
+//                 day: "numeric",
+//                 month: "short",
+//                 year: "numeric",
+//               })
+//             : "N/A",
+//           kycStatus:
+//             user.status === "APPROVED"
+//               ? "Verified"
+//               : user.status === "PENDING"
+//                 ? "Pending"
+//                 : "Suspended",
+//           portfolio: user.artisan?.portfolio || [],
+//         }));
+//     }
+
+//     return [];
+//   } catch (error) {
+//     console.error("Error fetching artisans:", error);
+//     throw error;
+//   }
+// }
+
+// export async function approveArtisan(id) {
+//   try {
+//     const response = await axios.patch(
+//       `${BASE_URL}/admin/approve/${id}`,
+//       {},
+//       getAuthHeaders(),
+//     );
+//     return response.data;
+//   } catch (error) {
+//     console.error(`Error approving artisan ${id}:`, error);
+//     throw error.response?.data?.message || "Failed to approve artisan";
+//   }
+// }
+
+// export async function rejectArtisan(id) {
+//   try {
+//     const response = await axios.patch(
+//       `${BASE_URL}/admin/reject/${id}`,
+//       {},
+//       getAuthHeaders(),
+//     );
+//     return response.data;
+//   } catch (error) {
+//     console.error(`Error rejecting artisan ${id}:`, error);
+//     throw error.response?.data?.message || "Failed to reject artisan";
+//   }
+// }
+
 import axios from "axios";
 import { getSession } from "./authService";
 
@@ -15,6 +116,45 @@ const getAuthHeaders = () => {
   };
 };
 
+/**
+ * ADMIN: Fetch a single artisan's full profile by their artisan ID.
+ * Used by pages/artisans/[id].jsx
+ */
+export async function getArtisanById(id) {
+  try {
+    const response = await axios.get(
+      `${BASE_URL}/admin/get-artisan/${id}`, // ✅ matches backend route
+      getAuthHeaders(),
+    );
+
+    const data = response.data.data;
+
+    return {
+      id: data.id,
+      userId: data.userId,
+      fullName: data.fullName || "Unknown",
+      email: data.email || "N/A",
+      whatsapp: data.whatsapp || "N/A",
+      specialty: data.specialty || "N/A",
+      city: data.city || "",
+      state: data.state || "",
+      status: data.status || "PENDING",
+      kycStatus: data.kycStatus || "NOT_STARTED",
+      registrationDate: data.registrationDate || data.createdAt,
+      portfolio: data.portfolio || [],
+      jobs: data.jobs || [],
+      payments: data.payments || [],
+    };
+  } catch (error) {
+    console.error(`Error fetching artisan profile ${id}:`, error);
+    throw error;
+  }
+}
+
+/**
+ * ADMIN: Fetch all artisans, filtered by tab status.
+ * Used by pages/artisans.jsx
+ */
 export async function getArtisans(tabStatus = "All") {
   try {
     const statusMap = {
@@ -37,13 +177,14 @@ export async function getArtisans(tabStatus = "All") {
       return rawData
         .filter((user) => user.role === "ARTISAN")
         .map((user) => ({
-          id: user.id,
+          id: user.artisan?.id || user.id, // ✅ use artisan.id for profile page link
+          userId: user.id, // for approve/reject
           email: user.email,
           status: user.status,
           role: user.role,
           fullName: user.artisan?.fullName || "Unknown",
           specialty: user.artisan?.specialty || "N/A",
-          whatsapp: user.artisan?.whatsappNumber || "N/A",
+          whatsapp: user.artisan?.whatsapp || "N/A",
           location: user.artisan?.city
             ? `${user.artisan.city}${user.artisan.state ? ", " + user.artisan.state : ""}`
             : "N/A",
@@ -71,6 +212,9 @@ export async function getArtisans(tabStatus = "All") {
   }
 }
 
+/**
+ * ADMIN: Approve an artisan by user ID.
+ */
 export async function approveArtisan(id) {
   try {
     const response = await axios.patch(
@@ -85,6 +229,9 @@ export async function approveArtisan(id) {
   }
 }
 
+/**
+ * ADMIN: Reject/suspend an artisan by user ID.
+ */
 export async function rejectArtisan(id) {
   try {
     const response = await axios.patch(

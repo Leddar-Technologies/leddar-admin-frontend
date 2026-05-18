@@ -31,10 +31,7 @@ export default function ArtisansPage() {
     try {
       setLoading(true);
       const data = await getArtisans(activeTab);
-      const artisanOnlyData = Array.isArray(data)
-        ? data.filter((user) => user.role === "ARTISAN")
-        : [];
-      setRows(artisanOnlyData);
+      setRows(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error("Failed to fetch artisans:", err);
       toast.error("Failed to load artisans");
@@ -138,7 +135,7 @@ export default function ArtisansPage() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8 text-xs font-bold uppercase tracking-widest text-[#A39289]">
         <div className="bg-white p-4 rounded-2xl border border-[#E8DED5] flex flex-col gap-1">
           <span>Total Artisans</span>
-          <span className="text-xl text-ink">{filteredRows.length}</span>
+          <span className="text-xl text-ink">{rows.length}</span>
         </div>
         <div className="bg-white p-4 rounded-2xl border border-[#E8DED5] flex flex-col gap-1">
           <span>Verified</span>
