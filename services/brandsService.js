@@ -55,13 +55,8 @@ export async function getBrands(tabStatus = "All") {
           ? new Date(user.createdAt).toLocaleDateString()
           : "N/A",
 
-        // This 'kycStatus' string must match what your 'BrandRow' or filters expect
-        kycStatus:
-          user.status === "APPROVED"
-            ? "Verified"
-            : user.status === "PENDING"
-              ? "Pending"
-              : "Suspended",
+        // KYC status from the KYC record (separate from account status)
+        kycStatus: user.kyc?.status || "NOT_STARTED",
       }));
     }
     return [];
@@ -124,3 +119,4 @@ export const getBrandById = async (id) => {
   const res = await axios.get(`${BASE_URL}/admin/get-brand/${id}`, getAuthHeaders());
   return res.data.data;
 };
+
