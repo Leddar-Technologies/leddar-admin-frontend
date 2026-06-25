@@ -7,6 +7,7 @@ import {
   ClipboardList,
   CreditCard,
   Gauge,
+  History,
   Package,
   Percent,
   ShoppingBag,
@@ -22,6 +23,7 @@ const navItems = [
   { label: 'Orders', href: '/orders', icon: Package },
   { label: 'Jobs', href: '/jobs', icon: Briefcase },
   { label: 'Payments', href: '/payments', icon: CreditCard },
+  { label: 'Payment History', href: '/payment-history', icon: History },
   { label: 'Commission Settings', href: '/commission-settings', icon: Percent },
   { label: 'Notifications', href: '/notifications', icon: Bell },
   { label: 'Profile', href: '/profile', icon: User },
@@ -31,7 +33,7 @@ export default function Sidebar({ onNavigate }) {
   const router = useRouter();
 
   return (
-    <aside className="h-full w-72 bg-espresso text-neutral-50">
+    <aside className="h-full min-h-screen w-72 bg-espresso text-neutral-50">
       <div className="border-b border-white/10 px-6 py-6">
         <Image src="/leddar-logo.svg" alt="Leddar" width={160} height={40} priority />
         <p className="text-xs text-neutral-500">Administration Panel</p>

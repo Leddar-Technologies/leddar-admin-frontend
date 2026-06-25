@@ -24,6 +24,8 @@ import {
   CheckCircle2,
   XCircle,
   Loader2,
+  Landmark,
+  AlertCircle,
 } from "lucide-react";
 
 export default function ArtisanProfilePage() {
@@ -140,7 +142,7 @@ export default function ArtisanProfilePage() {
               <Badge variant={statusVariant}>
                 {artisan.status || "PENDING"}
               </Badge>
-              <Badge variant="outline">ID: {artisan.id?.slice(0, 8)}...</Badge>
+              <Badge variant="outline">ID: {artisan.id?.slice(0, 8).toUpperCase()}</Badge>
             </div>
           </div>
         </div>
@@ -186,9 +188,19 @@ export default function ArtisanProfilePage() {
               <p className="text-[11px] uppercase tracking-wider font-bold text-[#A39289]">
                 Specialty
               </p>
-              <p className="text-ink font-medium text-sm mt-0.5">
-                {artisan.specialty || "N/A"}
-              </p>
+              <div className="mt-1.5 flex flex-wrap gap-1.5">
+                {Array.isArray(artisan.specialty) && artisan.specialty.length > 0
+                  ? artisan.specialty.map((s) => (
+                      <span
+                        key={s}
+                        className="inline-block rounded-full border border-[#E8DED5] bg-atmosphere px-2.5 py-0.5 text-xs font-semibold text-leather capitalize"
+                      >
+                        {s.charAt(0) + s.slice(1).toLowerCase()}
+                      </span>
+                    ))
+                  : <span className="text-sm text-ink font-medium">{artisan.specialty || "N/A"}</span>
+                }
+              </div>
             </div>
           </div>
 
@@ -260,6 +272,43 @@ export default function ArtisanProfilePage() {
         </div>
       )}
 
+      {/* Bank Details Card */}
+      <div className="mt-8 rounded-2xl border border-[#E8DED5] bg-white p-6 shadow-sm">
+        <div className="flex items-center gap-2 mb-4">
+          <Landmark className="w-4 h-4 text-leather" />
+          <h4 className="text-sm font-bold uppercase tracking-widest text-[#A39289]">
+            Payment Bank Details
+          </h4>
+        </div>
+        {artisan.bankDetail ? (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div>
+              <p className="text-[11px] uppercase tracking-wider font-bold text-[#A39289]">Bank Name</p>
+              <p className="mt-1 text-sm font-semibold text-ink">{artisan.bankDetail.bankName}</p>
+            </div>
+            <div>
+              <p className="text-[11px] uppercase tracking-wider font-bold text-[#A39289]">Account Name</p>
+              <p className="mt-1 text-sm font-semibold text-ink">{artisan.bankDetail.accountName}</p>
+            </div>
+            <div>
+              <p className="text-[11px] uppercase tracking-wider font-bold text-[#A39289]">Account Number</p>
+              <p className="mt-1 text-sm font-semibold text-ink font-mono">{artisan.bankDetail.accountNumber}</p>
+            </div>
+            <div>
+              <p className="text-[11px] uppercase tracking-wider font-bold text-[#A39289]">Bank Code</p>
+              <p className="mt-1 text-sm font-semibold text-ink font-mono">{artisan.bankDetail.bankCode || "—"}</p>
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+            <AlertCircle className="h-5 w-5 text-amber-600 shrink-0" />
+            <p className="text-sm text-amber-800">
+              This artisan has not added their bank details yet. Payments cannot be released until bank details are saved.
+            </p>
+          </div>
+        )}
+      </div>
+
       {/* Tabs Navigation */}
       <div className="mt-10 mb-6 flex border-b border-[#E8DED5]">
         {["Job History", "Payment History"].map((t) => (
@@ -285,7 +334,7 @@ export default function ArtisanProfilePage() {
               artisan.jobs.map((job) => (
                 <tr key={job.id} className="hover:bg-atmosphere/30">
                   <td className="px-6 py-4 font-mono text-xs font-bold text-leather uppercase">
-                    #{job.id.slice(0, 8)}
+                    {job.ref || `#${job.id.slice(0, 8).toUpperCase()}`}
                   </td>
                   <td className="px-6 py-4 text-sm text-ink font-medium">
                     {job.type}
@@ -315,7 +364,7 @@ export default function ArtisanProfilePage() {
               artisan.payments.map((payment) => (
                 <tr key={payment.id} className="hover:bg-atmosphere/30">
                   <td className="px-6 py-4 text-xs font-bold text-[#A39289] uppercase font-mono">
-                    {payment.reference || payment.id.slice(0, 8)}
+                    {payment.reference || payment.ref || payment.id.slice(0, 8).toUpperCase()}
                   </td>
                   <td className="px-6 py-4 text-sm text-ink">
                     {payment.stage?.replace("_", " ")}

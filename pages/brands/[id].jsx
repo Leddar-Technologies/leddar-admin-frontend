@@ -149,7 +149,7 @@ export default function BrandProfilePage() {
               >
                 {brand.status}
               </Badge>
-              <Badge variant="outline">ID: {brand.id.slice(0, 8)}...</Badge>
+              <Badge variant="outline">ID: {brand.id.slice(0, 8).toUpperCase()}</Badge>
             </div>
           </div>
         </div>
@@ -256,7 +256,7 @@ export default function BrandProfilePage() {
               brand.orders.map((order) => (
                 <tr key={order.id} className="hover:bg-atmosphere/30">
                   <td className="px-6 py-4 font-mono text-xs font-bold text-leather uppercase">
-                    #{order.id.slice(0, 8)}
+                    {order.ref || `#${order.id.slice(0, 8).toUpperCase()}`}
                   </td>
                   <td className="px-6 py-4 text-sm text-ink font-medium">
                     {order.type}
@@ -287,7 +287,7 @@ export default function BrandProfilePage() {
               brand.payments.map((payment) => (
                 <tr key={payment.id} className="hover:bg-atmosphere/30">
                   <td className="px-6 py-4 text-xs font-bold text-[#A39289] uppercase font-mono">
-                    {payment.reference || payment.id.slice(0, 8)}
+                    {payment.reference || payment.ref || payment.id.slice(0, 8).toUpperCase()}
                   </td>
                   <td className="px-6 py-4 text-sm text-ink">
                     {payment.stage.replace("_", " ")}

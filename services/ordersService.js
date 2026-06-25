@@ -1,66 +1,96 @@
-import { orderTimelines, orders } from '@/data/mockData';
+import apiClient from "./apiClient";
 
-let orderStore = orders.map((item) => ({ ...item }));
-let timelineStore = Object.entries(orderTimelines).reduce((acc, [orderId, timeline]) => {
-  acc[orderId] = timeline.map((entry) => ({ ...entry }));
-  return acc;
-}, {});
-
-const samplePipeline = [
-  'Flat Fee Paid',
-  'Sample in Production',
-  'Video Sent',
-  'Sample Approved',
-  'Balance Paid',
-  'In Full Production',
-  'Shipped',
-  'Delivered',
-];
-
-const productionPipeline = ['Quote Approved', 'In Production', 'Shipped', 'Delivered'];
+function shapeOrder(o) {
+  return {
+    id:            o.id,
+    ref:           o.ref || null,
+    orderType:     o.type === "SAMPLE" ? "Sample" : "Production",
+    type:          o.type,
+    status:        o.status,
+    fullAmount:    o.totalAmount || 0,
+    totalAmount:   o.totalAmount || 0,
+    flatFeePaid:   o.flatFeePaid || 0,
+    escrowBalance: o.escrowBalance || 0,
+    brand:         o.brand?.businessName || "—",
+    brandId:       o.brand?.id,
+    brandEmail:    o.brand?.user?.email || "—",
+    productType:   o.quote?.productType?.[0] || "—",
+    quantity:      o.quote?.quantity || 0,
+    price:         o.quote?.price || null,
+    materials:     o.quote?.materials || null,
+    labour:        o.quote?.labour || null,
+    quoteId:       o.quoteId,
+    jobs:          o.jobs || [],
+    payments:      o.payments || [],
+    statusLogs:    o.statusLogs || [],
+    invoice:       o.invoice || null,
+    createdAt:     o.createdAt,
+  };
+}
 
 export async function getOrders() {
-  return orderStore.map((item) => ({ ...item }));
+  try {
+    const res  = await apiClient.get("/admin/orders");
+    const data = res.data.data || {};
+    const allOrders = Array.isArray(data)
+      ? data
+      : [...(data.sample || []), ...(data.production || [])];
+    return allOrders.map(shapeOrder);
+  } catch (err) {
+    console.error("getOrders error:", err.message);
+    return [];
+  }
 }
 
 export async function getOrderById(id) {
-  return orderStore.find((item) => item.id === id) || null;
+  try {
+    const res = await apiClient.get(`/admin/orders/${id}`);
+    return shapeOrder(res.data.data);
+  } catch (err) {
+    console.error("getOrderById error:", err.message);
+    return null;
+  }
 }
+
+export async function getOrderTimeline(orderId) {
+  try {
+    const order = await getOrderById(orderId);
+    return (order?.statusLogs || []).map((log) => ({
+      status: log.status, note: log.note || "", at: log.createdAt,
+    }));
+  } catch {
+    return [];
+  }
+}
+
+export async function updateOrderStatus({ orderId, nextStatus, note }) {
+  const res = await apiClient.patch(
+    `/admin/orders/${orderId}/status`,
+    { status: nextStatus, note: note || "" },
+  );
+  return shapeOrder(res.data.data);
+}
+
+const SAMPLE_PIPELINE = [
+  "SUBMITTED", "FLAT_FEE_PAID", "SAMPLE_IN_PROGRESS",
+  "SAMPLE_COMPLETED", "SAMPLE_APPROVED", "BALANCE_PAID",
+  "IN_PRODUCTION", "SHIPPED", "DELIVERED",
+];
+const PRODUCTION_PIPELINE = ["SUBMITTED", "IN_PRODUCTION", "SHIPPED", "DELIVERED"];
 
 export async function getNextStatuses(orderId) {
   const order = await getOrderById(orderId);
   if (!order) return [];
-
-  const pipeline = order.orderType === 'Sample' ? samplePipeline : productionPipeline;
-  const currentIndex = pipeline.findIndex((status) => status === order.status);
-
-  if (currentIndex === -1) return pipeline;
-  return pipeline.slice(currentIndex + 1, currentIndex + 2);
+  const pipeline = order.type === "SAMPLE" ? SAMPLE_PIPELINE : PRODUCTION_PIPELINE;
+  const idx = pipeline.indexOf(order.status);
+  if (idx === -1 || idx === pipeline.length - 1) return [];
+  return [pipeline[idx + 1]];
 }
 
-export async function updateOrderStatus({ orderId, nextStatus, note }) {
-  orderStore = orderStore.map((order) =>
-    order.id === orderId
-      ? {
-          ...order,
-          status: nextStatus,
-        }
-      : order
+export async function setProductionPricing({ orderId, price, materials, labour }) {
+  const res = await apiClient.post(
+    `/admin/orders/${orderId}/set-pricing`,
+    { price: Number(price), materials: Number(materials), labour: Number(labour) },
   );
-
-  const existing = timelineStore[orderId] || [];
-  timelineStore[orderId] = [
-    ...existing,
-    {
-      status: nextStatus,
-      note: note || 'Status updated by admin.',
-      at: new Date().toISOString(),
-    },
-  ];
-
-  return getOrderById(orderId);
-}
-
-export async function getOrderTimeline(orderId) {
-  return (timelineStore[orderId] || []).map((item) => ({ ...item }));
+  return res.data;
 }
