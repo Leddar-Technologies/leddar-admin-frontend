@@ -20,6 +20,13 @@ export default function BrandRow({ brand, onAction }) {
     onAction(brand.id, action);
   };
 
+  const formatType = (s) => s.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
+  const types = Array.isArray(brand.productType)
+    ? brand.productType.map(formatType)
+    : brand.productType ? [formatType(brand.productType)] : [];
+  const visible = types.slice(0, 2);
+  const overflow = types.length - visible.length;
+
   return (
     <tr className="group hover:bg-atmosphere/30 transition-colors border-b border-[#F4EFEA] last:border-0 cursor-default">
       <td className="px-6 py-5">
@@ -31,8 +38,18 @@ export default function BrandRow({ brand, onAction }) {
         </div>
       </td>
 
-      <td className="px-6 py-5 text-sm text-[#6A5B54] font-medium">
-        {brand.productType || "General"}
+      <td className="px-6 py-5">
+        <div className="flex flex-wrap items-center gap-1">
+          {visible.map((t) => (
+            <span key={t} className="inline-block rounded-full border border-[#E8DED5] bg-atmosphere px-2.5 py-0.5 text-[10px] font-semibold text-leather whitespace-nowrap">
+              {t}
+            </span>
+          ))}
+          {overflow > 0 && (
+            <span className="text-[10px] font-semibold text-[#A39289]">+{overflow} more</span>
+          )}
+          {types.length === 0 && <span className="text-sm text-[#A39289]">—</span>}
+        </div>
       </td>
 
       <td className="px-6 py-5 text-sm text-green-600 font-bold">

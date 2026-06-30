@@ -7,11 +7,12 @@ import BrandRow from "@/components/ui/BrandRow";
 import Spinner from "@/components/ui/Spinner";
 import AdminRoute from "../components/auth/AdminRoute";
 import { getBrands, approveUser, rejectUser } from "@/services/brandsService";
-import { Users, ShieldCheck, Clock, UserX, Search } from "lucide-react";
+import { Users, ShieldCheck, Clock, UserX, Search, FileSearch } from "lucide-react";
 
 const tabs = [
   { id: "All", label: "All Brands", icon: Users },
   { id: "Pending Approval", label: "Pending", icon: Clock },
+  { id: "KYC Pending", label: "KYC Pending", icon: FileSearch },
   { id: "Verified", label: "Verified", icon: ShieldCheck },
   { id: "Suspended", label: "Suspended", icon: UserX },
 ];
@@ -59,6 +60,10 @@ export default function BrandsPage() {
       );
     if (activeTab === "Pending Approval")
       result = result.filter((item) => item.status === "PENDING");
+    if (activeTab === "KYC Pending")
+      result = result.filter(
+        (item) => item.kycStatus === "PENDING" || !item.kycStatus || item.kycStatus === "NOT_STARTED",
+      );
 
     // Search filter
     if (searchQuery) {

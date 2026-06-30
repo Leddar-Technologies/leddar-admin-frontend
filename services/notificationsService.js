@@ -1,16 +1,16 @@
-import { notifications } from '@/data/mockData';
-
-let notificationStore = notifications.map((item) => ({ ...item }));
+// leddar-admin-frontend/services/notificationsService.js
+import apiClient from "./apiClient";
 
 export async function getNotifications() {
-  return notificationStore.map((item) => ({ ...item }));
+  try {
+    const res = await apiClient.get("/admin/notifications");
+    return res.data.data || [];
+  } catch {
+    return [];
+  }
 }
 
+// Kept for backwards compatibility
 export async function createNotification(payload) {
-  const newNotification = {
-    id: Date.now(),
-    ...payload,
-  };
-  notificationStore = [newNotification, ...notificationStore];
-  return { ...newNotification };
+  return { id: Date.now(), ...payload };
 }
