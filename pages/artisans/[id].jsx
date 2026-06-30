@@ -106,7 +106,7 @@ export default function ArtisanProfilePage() {
     },
     {
       label: "KYC Status",
-      value: artisan.kycStatus || "NOT_STARTED",
+      value: (artisan.kycStatus || "NOT_STARTED").replace(/_/g, " "),
       icon: Shield,
       color: "text-leather",
     },
@@ -147,8 +147,8 @@ export default function ArtisanProfilePage() {
           </div>
         </div>
 
-        {/* 5-col info grid — email spans 2 cols */}
-        <div className="grid grid-cols-5 gap-6 p-8">
+        {/* 4-col info grid */}
+        <div className="grid grid-cols-4 gap-6 px-8 pt-8 pb-4">
           {/* Email — col-span-2 */}
           <div className="col-span-2 flex items-start gap-3 min-w-0">
             <div className="p-2 bg-atmosphere rounded-lg text-leather flex-shrink-0">
@@ -179,31 +179,6 @@ export default function ArtisanProfilePage() {
             </div>
           </div>
 
-          {/* Specialty */}
-          <div className="flex items-start gap-3 min-w-0">
-            <div className="p-2 bg-atmosphere rounded-lg text-leather flex-shrink-0">
-              <Hammer size={18} />
-            </div>
-            <div className="min-w-0">
-              <p className="text-[11px] uppercase tracking-wider font-bold text-[#A39289]">
-                Specialty
-              </p>
-              <div className="mt-1.5 flex flex-wrap gap-1.5">
-                {Array.isArray(artisan.specialty) && artisan.specialty.length > 0
-                  ? artisan.specialty.map((s) => (
-                      <span
-                        key={s}
-                        className="inline-block rounded-full border border-[#E8DED5] bg-atmosphere px-2.5 py-0.5 text-xs font-semibold text-leather capitalize"
-                      >
-                        {s.charAt(0) + s.slice(1).toLowerCase()}
-                      </span>
-                    ))
-                  : <span className="text-sm text-ink font-medium">{artisan.specialty || "N/A"}</span>
-                }
-              </div>
-            </div>
-          </div>
-
           {/* Location */}
           <div className="flex items-start gap-3 min-w-0">
             <div className="p-2 bg-atmosphere rounded-lg text-leather flex-shrink-0">
@@ -221,6 +196,32 @@ export default function ArtisanProfilePage() {
             </div>
           </div>
         </div>
+
+        {/* Specialty — full-width row */}
+        {Array.isArray(artisan.specialty) && artisan.specialty.length > 0 && (
+          <div className="px-8 pb-8">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-atmosphere rounded-lg text-leather flex-shrink-0">
+                <Hammer size={18} />
+              </div>
+              <div>
+                <p className="text-[11px] uppercase tracking-wider font-bold text-[#A39289] mb-1.5">
+                  Specialty
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {artisan.specialty.map((s) => (
+                    <span
+                      key={s}
+                      className="inline-block rounded-full border border-[#E8DED5] bg-atmosphere px-3 py-1 text-xs font-semibold text-leather"
+                    >
+                      {s.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, c => c.toUpperCase())}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </section>
 
       {/* Stats Grid */}

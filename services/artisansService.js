@@ -19,6 +19,7 @@ export async function getArtisanById(id) {
       portfolio:        data.portfolio || [],
       jobs:             data.jobs || [],
       payments:         data.payments || [],
+      bankDetail:       data.bankDetail || null,
     };
   } catch (error) {
     console.error(`Error fetching artisan profile ${id}:`, error);
@@ -51,7 +52,11 @@ export async function getArtisans(tabStatus = "All") {
         registrationDate: user.createdAt
           ? new Date(user.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })
           : "N/A",
-        kycStatus: user.kyc?.status || "NOT_STARTED", // VERIFIED | PENDING | FAILED | NOT_STARTED
+        kycStatus:      user.kyc?.status        || "NOT_STARTED",
+        ninStatus:      user.kyc?.ninStatus     || null,
+        addressStatus:  user.kyc?.addressStatus || null,
+        addressVerifiedAt: user.kyc?.addressVerifiedAt || null,
+        ninVerifiedAt:  user.kyc?.ninVerifiedAt || null,
         portfolio: user.artisan?.portfolio || [],
       }));
   } catch (error) {

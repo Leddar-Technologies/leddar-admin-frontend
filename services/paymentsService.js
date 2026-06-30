@@ -23,6 +23,7 @@ export async function getPayments() {
         id:                   item.id,
         orderId:              item.id,
         orderRef:             item.ref || item.id?.slice(0, 8).toUpperCase(),
+        quoteRef:             item.quote?.ref || null,
         brand:                item.brand?.businessName || "—",
         brandId:              item.brand?.id,
         artisan:              artisanObj?.fullName || "—",

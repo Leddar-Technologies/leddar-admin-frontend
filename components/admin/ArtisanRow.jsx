@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, X, ExternalLink, MessageCircle } from "lucide-react";
+import { Check, X, ExternalLink, MessageCircle, ShieldCheck, MapPin } from "lucide-react";
 import moment from "moment";
 import Link from "next/link";
 
@@ -17,25 +17,74 @@ export default function ArtisanRow({ artisan, onAction }) {
     onAction(artisan.userId, type);
   };
 
-  const specialty = Array.isArray(artisan.specialty)
-    ? artisan.specialty.join(", ")
-    : artisan.specialty || "N/A";
+  const formatSpec = (s) => s.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
+  const specialties = Array.isArray(artisan.specialty)
+    ? artisan.specialty.map(formatSpec)
+    : artisan.specialty ? [formatSpec(artisan.specialty)] : [];
+
+  const visible = specialties.slice(0, 2);
+  const overflow = specialties.length - visible.length;
 
   return (
     <tr className="group hover:bg-atmosphere/30 transition-colors border-b border-[#F4EFEA] last:border-0 cursor-default">
       {/* Artisan Details */}
       <td className="px-6 py-5">
-        <div className="flex flex-col">
+        <div className="flex flex-col gap-1">
           <span className="font-bold text-ink">
             {artisan.fullName || "Unknown Artisan"}
           </span>
           <span className="text-xs text-[#A39289]">{artisan.email}</span>
+          {/* KYC breakdown chips */}
+          <div className="flex flex-wrap gap-1 mt-0.5">
+            {/* NIN */}
+            {artisan.ninStatus === "VERIFIED" ? (
+              <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[9px] font-bold text-emerald-700">
+                <ShieldCheck size={9} /> NIN ✓
+              </span>
+            ) : artisan.ninStatus === "FAILED" ? (
+              <span className="inline-flex items-center gap-1 rounded-full border border-red-200 bg-red-50 px-1.5 py-0.5 text-[9px] font-bold text-red-600">
+                <ShieldCheck size={9} /> NIN ✗
+              </span>
+            ) : artisan.kycStatus && artisan.kycStatus !== "NOT_STARTED" ? (
+              <span className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[9px] font-bold text-amber-700">
+                <ShieldCheck size={9} /> NIN Pending
+              </span>
+            ) : null}
+            {/* Address */}
+            {artisan.addressStatus === "VERIFIED" ? (
+              <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[9px] font-bold text-emerald-700">
+                <MapPin size={9} /> Addr ✓
+              </span>
+            ) : artisan.addressStatus === "FAILED" ? (
+              <span className="inline-flex items-center gap-1 rounded-full border border-red-200 bg-red-50 px-1.5 py-0.5 text-[9px] font-bold text-red-600">
+                <MapPin size={9} /> Addr Failed
+              </span>
+            ) : artisan.addressStatus === "IN_PROGRESS" ? (
+              <span className="inline-flex items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-1.5 py-0.5 text-[9px] font-bold text-blue-600">
+                <MapPin size={9} /> QoreID Pending
+              </span>
+            ) : artisan.addressStatus === "PENDING" ? (
+              <span className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[9px] font-bold text-amber-700">
+                <MapPin size={9} /> Addr Pending
+              </span>
+            ) : null}
+          </div>
         </div>
       </td>
 
       {/* Specialty */}
-      <td className="px-6 py-5 text-sm text-[#6A5B54] font-medium">
-        {specialty}
+      <td className="px-6 py-5">
+        <div className="flex flex-wrap items-center gap-1">
+          {visible.map((s) => (
+            <span key={s} className="inline-block rounded-full border border-[#E8DED5] bg-atmosphere px-2.5 py-0.5 text-[10px] font-semibold text-leather whitespace-nowrap">
+              {s}
+            </span>
+          ))}
+          {overflow > 0 && (
+            <span className="text-[10px] font-semibold text-[#A39289]">+{overflow} more</span>
+          )}
+          {specialties.length === 0 && <span className="text-sm text-[#A39289]">—</span>}
+        </div>
       </td>
 
       {/* Contact */}

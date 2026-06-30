@@ -97,7 +97,12 @@ export default function OrderDetailPage() {
           <div className="bg-atmosphere/40 px-6 py-5 border-b border-[#F4EFEA]">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <p className="font-mono text-xs text-[#A39289]">#{order.id.toUpperCase()}</p>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <p className="font-mono text-xs font-bold text-leather">{order.ref || `#${order.id.toUpperCase()}`}</p>
+                  {order.quoteRef && (
+                    <p className="font-mono text-[10px] text-[#A39289]">[{order.quoteRef}]</p>
+                  )}
+                </div>
                 <h2 className="text-xl font-bold text-ink mt-0.5">{order.brand}</h2>
               </div>
               <div className="flex gap-2">

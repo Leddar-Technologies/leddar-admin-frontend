@@ -59,6 +59,7 @@ export async function getAllJobsFromOrders() {
         ...job,
         orderId:              order.id,
         orderRef:             order.ref || `#${order.id.slice(0, 8).toUpperCase()}`,
+        quoteRef:             order.quote?.ref || null,
         orderType:            order.type,
         orderStatus:          order.status,
         brandName:            order.brand?.businessName || "—",

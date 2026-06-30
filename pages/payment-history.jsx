@@ -62,7 +62,7 @@ export default function PaymentHistoryPage() {
       const url  = URL.createObjectURL(blob);
       const a    = document.createElement('a');
       a.href     = url;
-      a.download = `RCP-${orderRef || paymentId.slice(0, 8).toUpperCase()}.pdf`;
+      a.download = `leddar-${orderRef || paymentId}.pdf`;
       a.click();
       URL.revokeObjectURL(url);
     } catch {
@@ -413,8 +413,11 @@ export default function PaymentHistoryPage() {
                 <tbody className="divide-y divide-[#F4EFEA]">
                   {filtered.map((r) => (
                     <tr key={r.id} className="hover:bg-atmosphere/20 transition-colors">
-                      <td className="px-4 py-3 font-mono text-xs font-bold text-leather whitespace-nowrap">
-                        {r.orderRef}
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <p className="font-mono text-xs font-bold text-leather">{r.orderRef}</p>
+                        {r.quoteRef && (
+                          <p className="font-mono text-[10px] text-[#A39289] mt-0.5">[{r.quoteRef}]</p>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-[#5A4A44]">{r.brandName}</td>
                       <td className="px-4 py-3 text-[#5A4A44]">{r.productType || '—'}</td>

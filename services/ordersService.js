@@ -4,6 +4,7 @@ function shapeOrder(o) {
   return {
     id:            o.id,
     ref:           o.ref || null,
+    quoteRef:      o.quote?.ref || null,
     orderType:     o.type === "SAMPLE" ? "Sample" : "Production",
     type:          o.type,
     status:        o.status,

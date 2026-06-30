@@ -259,7 +259,7 @@ export default function BrandProfilePage() {
                     {order.ref || `#${order.id.slice(0, 8).toUpperCase()}`}
                   </td>
                   <td className="px-6 py-4 text-sm text-ink font-medium">
-                    {order.type}
+                    {order.type === "SAMPLE" ? "Sample" : order.type === "PRODUCTION" ? "Production" : order.type || "—"}
                   </td>
                   <td className="px-6 py-4">
                     <Badge>{order.status}</Badge>
@@ -287,18 +287,21 @@ export default function BrandProfilePage() {
               brand.payments.map((payment) => (
                 <tr key={payment.id} className="hover:bg-atmosphere/30">
                   <td className="px-6 py-4 text-xs font-bold text-[#A39289] uppercase font-mono">
-                    {payment.reference || payment.ref || payment.id.slice(0, 8).toUpperCase()}
+                    {payment.reference || payment.id.slice(0, 8).toUpperCase()}
                   </td>
                   <td className="px-6 py-4 text-sm text-ink">
-                    {payment.stage.replace("_", " ")}
+                    {payment.stage?.replace(/_/g, " ") || "—"}
                   </td>
                   <td className="px-6 py-4">
                     <Badge
                       variant={
-                        payment.status === "RECEIVED" ? "success" : "warning"
+                        payment.status === "RELEASED" ? "success"
+                        : payment.status === "PENDING" ? "warning"
+                        : payment.status === "FAILED"  ? "error"
+                        : "default"
                       }
                     >
-                      {payment.status}
+                      {payment.status || "—"}
                     </Badge>
                   </td>
                   <td className="px-6 py-4 text-sm font-bold text-emerald-600">

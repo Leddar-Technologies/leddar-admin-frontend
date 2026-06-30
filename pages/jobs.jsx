@@ -248,7 +248,7 @@ function JobPanel({ job, onActionDone }) {
           <p className="text-xs text-[#A39289] truncate">{job.artisanEmail}</p>
           {job.artisanSpecialty?.length > 0 && (
             <p className="text-xs text-[#6A5B54] mt-0.5">
-              {job.artisanSpecialty.join(", ")}
+              {job.artisanSpecialty.map((s) => s.replace(/_/g, " ")).join(", ")}
               {job.artisanCapacity ? ` · ${job.artisanCapacity} units/wk` : ""}
             </p>
           )}
@@ -286,11 +286,17 @@ function JobPanel({ job, onActionDone }) {
           </div>
           {job.videoUrl ? (
             <>
-              {signedVideoUrl
-                ? <video src={signedVideoUrl} controls className="w-full rounded-xl bg-black max-h-48" />
-                : <div className="flex items-center justify-center rounded-xl bg-black h-32 text-white/50 text-sm">Loading video…</div>
-              }
-              {adminVideoStatus !== "APPROVED" && (
+              {/* Hide video when rejected — artisan must re-upload before admin can review */}
+              {adminVideoStatus === "REJECTED" ? (
+                <div className="flex items-center justify-center rounded-xl border border-red-200 bg-red-50 h-24 text-sm text-red-600 font-medium">
+                  Video rejected — waiting for artisan to re-upload
+                </div>
+              ) : signedVideoUrl ? (
+                <video src={signedVideoUrl} controls className="w-full rounded-xl bg-black max-h-48" />
+              ) : (
+                <div className="flex items-center justify-center rounded-xl bg-black h-32 text-white/50 text-sm">Loading video…</div>
+              )}
+              {adminVideoStatus !== "APPROVED" && adminVideoStatus !== "REJECTED" && (
                 <div className="mt-2 flex gap-2">
                   <button
                     onClick={handleApproveVideo}
@@ -310,7 +316,7 @@ function JobPanel({ job, onActionDone }) {
                   </button>
                 </div>
               )}
-              {adminVideoStatus === "APPROVED" && (
+              {adminVideoStatus === "APPROVED" && job.type === "SAMPLE" && !["SAMPLE_APPROVED", "COMPLETED"].includes(job.status) && (
                 <button
                   onClick={() => setRejectModalOpen(true)}
                   disabled={actionLoading}
@@ -442,6 +448,10 @@ function OrderJobsModal({ jobs, open, onClose, onActionDone }) {
           <div>
             <p className="text-xs text-[#A39289] uppercase mb-0.5">Order Ref</p>
             <p className="font-mono font-bold text-leather">{first.orderRef}</p>
+          </div>
+          <div>
+            <p className="text-xs text-[#A39289] uppercase mb-0.5">Quote Ref</p>
+            <p className="font-mono font-bold text-leather">{first.quoteRef || "—"}</p>
           </div>
           <div>
             <p className="text-xs text-[#A39289] uppercase mb-0.5">Brand</p>
@@ -906,6 +916,9 @@ export default function JobsPage() {
                               <tr key={displayJob.orderRef || displayJob.id} className="hover:bg-atmosphere/20 transition-colors">
                                 <td className="px-4 py-3">
                                   <p className="font-mono text-xs font-bold text-leather">{displayJob.orderRef}</p>
+                                  {displayJob.quoteRef && (
+                                    <p className="font-mono text-[10px] text-[#A39289] mt-0.5">[{displayJob.quoteRef}]</p>
+                                  )}
                                   <Badge variant={displayJob.type === "SAMPLE" ? "warning" : "info"} className="mt-1">
                                     {displayJob.type}
                                   </Badge>
@@ -987,7 +1000,12 @@ export default function JobsPage() {
                           <tbody className="divide-y divide-[#F4EFEA]">
                             {videoJobs.map((job) => (
                               <tr key={job.id} className="hover:bg-atmosphere/20 transition-colors">
-                                <td className="px-4 py-3 font-mono text-xs font-bold text-leather">{job.orderRef}</td>
+                                <td className="px-4 py-3">
+                                  <p className="font-mono text-xs font-bold text-leather">{job.orderRef}</p>
+                                  {job.quoteRef && (
+                                    <p className="font-mono text-[10px] text-[#A39289] mt-0.5">[{job.quoteRef}]</p>
+                                  )}
+                                </td>
                                 <td className="px-4 py-3 font-medium text-ink">{job.brandName}</td>
                                 <td className="px-4 py-3 text-[#5A4A44]">{job.artisanName}</td>
                                 <td className="px-4 py-3">
@@ -1082,6 +1100,12 @@ export default function JobsPage() {
                     <p className="font-medium text-ink">{selectedOrder.quote?.quantity || "—"}</p>
                   </div>
                 </div>
+                {selectedOrder.quote?.ref && (
+                  <div className="mt-3 pt-3 border-t border-[#E8DED5]">
+                    <p className="text-[10px] text-[#A39289] uppercase tracking-wide mb-0.5">Quote Reference</p>
+                    <p className="font-mono text-xs font-bold text-leather">[{selectedOrder.quote.ref}]</p>
+                  </div>
+                )}
               </div>
 
               <form className="space-y-4" onSubmit={submitAssign}>
@@ -1095,8 +1119,17 @@ export default function JobsPage() {
                       className="w-full rounded-xl border border-[#E8DED5] px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-leather/20 focus:border-leather bg-white"
                     >
                       <option value="">All Specialties</option>
-                      {["BAGS","WALLETS","BELTS","SHOES","JACKETS"].map((s) => (
-                        <option key={s} value={s}>{s.charAt(0) + s.slice(1).toLowerCase()}</option>
+                      {[
+                        { value: "SHOES_AND_BOOTS",        label: "Shoes & Boots" },
+                        { value: "SLIPPERS_AND_SANDALS",   label: "Slippers & Sandals" },
+                        { value: "WOMEN_BAGS",             label: "Women Bags" },
+                        { value: "OFFICE_AND_TRAVEL_BAGS", label: "Office & Travel Bags" },
+                        { value: "WALLETS_AND_BELTS",      label: "Wallets & Belts" },
+                        { value: "SMALL_LEATHER_GOODS",    label: "Small Leather Goods" },
+                        { value: "LEATHER_WEARS",          label: "Leather Wears" },
+                        { value: "OTHERS",                 label: "Others" },
+                      ].map((s) => (
+                        <option key={s.value} value={s.value}>{s.label}</option>
                       ))}
                     </select>
                   </div>
@@ -1158,7 +1191,7 @@ export default function JobsPage() {
                               <p className="text-sm font-semibold text-ink">{a.fullName}</p>
                               <p className="text-xs text-[#A39289]">
                                 {a.user?.email || "—"}
-                                {specs.length > 0 ? ` · ${specs.join(", ")}` : ""}
+                                {specs.length > 0 ? ` · ${specs.map(s => s.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, c => c.toUpperCase())).join(", ")}` : ""}
                                 {a.capacityPerWeek ? ` · ${a.capacityPerWeek} units/wk` : ""}
                               </p>
                             </div>
@@ -1264,6 +1297,7 @@ export default function JobsPage() {
           onClose={() => setViewJobs(null)}
           onActionDone={(msg) => { setViewJobs(null); loadAll(); showToast("✓ " + msg); }}
         />
+
       </PageWrapper>
     </AdminRoute>
   );

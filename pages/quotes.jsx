@@ -501,6 +501,12 @@ export default function QuotesPage() {
 
                 {/* Details grid */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 rounded-xl border border-[#E8DED5] bg-atmosphere p-4 text-sm">
+                  {q.ref && (
+                    <div className="sm:col-span-2">
+                      <p className="text-xs uppercase text-[#A39289]">Quote ID</p>
+                      <p className="mt-0.5 font-mono font-bold text-leather">[{q.ref}]</p>
+                    </div>
+                  )}
                   <div>
                     <p className="text-xs uppercase text-[#A39289]">Product Type</p>
                     <p className="mt-0.5 font-semibold text-ink">{q.productType}</p>
@@ -549,13 +555,33 @@ export default function QuotesPage() {
                     <p className="text-xs uppercase text-[#A39289] mb-3">
                       Uploaded Files ({q.files.length})
                     </p>
+
+                    {/* Image grid — up to 5, shown as thumbnails */}
+                    {q.files.some((f) => f.mimeType?.startsWith('image/')) && (
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-3">
+                        {q.files
+                          .filter((f) => f.mimeType?.startsWith('image/'))
+                          .map((file, i) => {
+                            const name = (file.url?.split('?')[0] || '').split('/').pop() || `Image ${i + 1}`;
+                            return (
+                              <a key={i} href={file.url} target="_blank" rel="noreferrer"
+                                className="group relative block aspect-square rounded-xl overflow-hidden border border-[#E8DED5] bg-[#FAF7F4] hover:border-gold transition-colors">
+                                <img src={file.url} alt={name} className="h-full w-full object-cover" />
+                                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                                  <ExternalLink className="h-5 w-5 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow" />
+                                </div>
+                              </a>
+                            );
+                          })}
+                      </div>
+                    )}
+
                     <div className="space-y-3">
-                      {q.files.map((file, i) => {
-                        const isImage = file.mimeType?.startsWith('image/');
+                      {q.files.filter((f) => !f.mimeType?.startsWith('image/')).map((file, i) => {
+                        const isImage = false;
                         const isVideo = file.mimeType?.startsWith('video/');
                         const isPdf   = file.mimeType === 'application/pdf'
                                      || file.url?.toLowerCase().endsWith('.pdf');
-                        // Strip query params (presigned URL has many) then take last path segment
                         const name    = (file.url?.split('?')[0] || '').split('/').pop() || `File ${i + 1}`;
 
                         return (
@@ -609,10 +635,9 @@ export default function QuotesPage() {
 
                             {/* Footer row with filename + open link */}
                             <div className="flex items-center gap-3 px-3 py-2 border-t border-[#F4EFEA]">
-                              {isImage && <Image   className="h-4 w-4 shrink-0 text-amber-500" />}
                               {isVideo && <Film    className="h-4 w-4 shrink-0 text-purple-500" />}
                               {isPdf   && <FileText className="h-4 w-4 shrink-0 text-red-400" />}
-                              {!isImage && !isVideo && !isPdf && <FileText className="h-4 w-4 shrink-0 text-[#A39289]" />}
+                              {!isVideo && !isPdf && <FileText className="h-4 w-4 shrink-0 text-[#A39289]" />}
                               <span className="flex-1 truncate text-xs font-medium text-ink">{name}</span>
                               <a
                                 href={file.url}

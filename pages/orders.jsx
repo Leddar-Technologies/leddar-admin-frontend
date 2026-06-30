@@ -150,8 +150,11 @@ export default function OrdersPage() {
                     </tr>
                   ) : filteredRows.map((order) => (
                     <tr key={order.id} className="hover:bg-atmosphere/20 transition-colors">
-                      <td className="px-4 py-3 font-mono text-xs font-bold text-leather">
-                        {order.ref || `#${order.id.slice(0, 8).toUpperCase()}`}
+                      <td className="px-4 py-3">
+                        <p className="font-mono text-xs font-bold text-leather">{order.ref || `#${order.id.slice(0, 8).toUpperCase()}`}</p>
+                        {order.quoteRef && (
+                          <p className="font-mono text-[10px] text-[#A39289] mt-0.5">[{order.quoteRef}]</p>
+                        )}
                       </td>
                       <td className="px-4 py-3 font-medium text-ink">{order.brand}</td>
                       <td className="px-4 py-3">

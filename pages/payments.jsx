@@ -412,8 +412,11 @@ export default function PaymentsPage() {
 
                         return (
                           <tr key={payment.id} className="hover:bg-atmosphere/20 transition-colors">
-                            <td className="px-4 py-3 font-mono text-xs font-bold text-leather whitespace-nowrap">
-                              {payment.orderRef || `#${payment.orderId?.slice(0, 8).toUpperCase()}`}
+                            <td className="px-4 py-3 whitespace-nowrap">
+                              <p className="font-mono text-xs font-bold text-leather">{payment.orderRef || `#${payment.orderId?.slice(0, 8).toUpperCase()}`}</p>
+                              {payment.quoteRef && (
+                                <p className="font-mono text-[10px] text-[#A39289] mt-0.5">[{payment.quoteRef}]</p>
+                              )}
                             </td>
                             <td className="px-4 py-3 font-medium text-ink">{payment.brand}</td>
                             <td className="px-4 py-3 font-semibold text-ink">
@@ -1021,7 +1024,12 @@ export default function PaymentsPage() {
                       <tbody className="divide-y divide-amber-50">
                         {pendingSampleJobs.map((job) => (
                           <tr key={job.id} className="hover:bg-amber-50/40 transition-colors">
-                            <td className="px-4 py-3 font-mono text-xs font-bold text-leather">{job.orderRef}</td>
+                            <td className="px-4 py-3">
+                              <p className="font-mono text-xs font-bold text-leather">{job.orderRef}</p>
+                              {job.quoteRef && (
+                                <p className="font-mono text-[10px] text-[#A39289] mt-0.5">[{job.quoteRef}]</p>
+                              )}
+                            </td>
                             <td className="px-4 py-3 font-medium text-ink">{job.brandName}</td>
                             <td className="px-4 py-3 text-[#5A4A44] text-xs">{job.productType}</td>
                             <td className="px-4 py-3 text-ink">{job.artisanName}</td>
@@ -1034,7 +1042,7 @@ export default function PaymentsPage() {
                                 }}
                                 className="flex items-center gap-1.5 rounded-xl bg-amber-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-amber-700 transition-colors whitespace-nowrap"
                               >
-                                <NairaIcon className="h-3.5 w-3.5" /> Release {Math.round((1 - (settings?.sampleAdminRate ?? 0.30)) * 100)}%
+                                <NairaIcon className="h-3.5 w-3.5" /> Release {100 - (settings?.sampleAdminRate ?? 30)}%
                               </button>
                             </td>
                           </tr>
@@ -1053,7 +1061,8 @@ export default function PaymentsPage() {
         {/* Sample payment release modal */}
         {(() => {
           const flatFee          = sampleReleaseModal.flatFee || 0;
-          const sampleAdminRate  = settings?.sampleAdminRate ?? 0.30;
+          // settings.sampleAdminRate is a % integer (e.g. 30), convert to decimal
+          const sampleAdminRate  = (settings?.sampleAdminRate ?? 30) / 100;
           const artisanRate      = 1 - sampleAdminRate;
           const artisanAmt    = Math.round(artisanRate * flatFee);
           const adminAmt      = Math.round(sampleAdminRate * flatFee);
