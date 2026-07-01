@@ -1,9 +1,6 @@
-import { dashboardStats, recentActivities } from '@/data/mockData';
+import apiClient from "./apiClient";
 
 export async function getDashboardStats() {
-  return { ...dashboardStats };
-}
-
-export async function getRecentActivities() {
-  return recentActivities.map((item) => ({ ...item }));
+  const res = await apiClient.get("/admin/stats");
+  return res.data.data;
 }

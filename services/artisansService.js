@@ -1,70 +1,64 @@
-import axios from "axios";
-import { getSession } from "./authService";
+import apiClient from "./apiClient";
 
-const BASE_URL = (
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api/v1"
-).replace(/\/$/, "");
-
-const getAuthHeaders = () => {
-  const session = getSession();
-  return {
-    headers: {
-      Authorization: `Bearer ${session?.token}`,
-      "Content-Type": "application/json",
-    },
-  };
-};
+export async function getArtisanById(id) {
+  try {
+    const res = await apiClient.get(`/admin/get-artisan/${id}`);
+    const data = res.data.data;
+    return {
+      id:               data.id,
+      userId:           data.userId,
+      fullName:         data.fullName || "Unknown",
+      email:            data.email || "N/A",
+      whatsapp:         data.whatsapp || "N/A",
+      specialty:        Array.isArray(data.specialty) ? data.specialty : data.specialty ? [data.specialty] : [],
+      city:             data.city || "",
+      state:            data.state || "",
+      status:           data.status || "PENDING",
+      kycStatus:        data.kycStatus || "NOT_STARTED",
+      registrationDate: data.registrationDate || data.createdAt,
+      portfolio:        data.portfolio || [],
+      jobs:             data.jobs || [],
+      payments:         data.payments || [],
+      bankDetail:       data.bankDetail || null,
+    };
+  } catch (error) {
+    console.error(`Error fetching artisan profile ${id}:`, error);
+    throw error;
+  }
+}
 
 export async function getArtisans(tabStatus = "All") {
   try {
     const statusMap = {
-      All: "ALL",
-      "Pending Approval": "PENDING",
-      Verified: "APPROVED",
-      Suspended: "REJECTED",
+      All: "ALL", "Pending Approval": "PENDING", Verified: "APPROVED", Suspended: "REJECTED",
     };
-
-    const backendStatus = statusMap[tabStatus] || "ALL";
-
-    const response = await axios.get(
-      `${BASE_URL}/admin/users?status=${backendStatus}`,
-      getAuthHeaders(),
-    );
-
-    const rawData = response.data.data;
-
-    if (Array.isArray(rawData)) {
-      return rawData
-        .filter((user) => user.role === "ARTISAN")
-        .map((user) => ({
-          id: user.id,
-          email: user.email,
-          status: user.status,
-          role: user.role,
-          fullName: user.artisan?.fullName || "Unknown",
-          specialty: user.artisan?.specialty || "N/A",
-          whatsapp: user.artisan?.whatsappNumber || "N/A",
-          location: user.artisan?.city
-            ? `${user.artisan.city}${user.artisan.state ? ", " + user.artisan.state : ""}`
-            : "N/A",
-          registrationDate: user.createdAt
-            ? new Date(user.createdAt).toLocaleDateString("en-GB", {
-                day: "numeric",
-                month: "short",
-                year: "numeric",
-              })
-            : "N/A",
-          kycStatus:
-            user.status === "APPROVED"
-              ? "Verified"
-              : user.status === "PENDING"
-                ? "Pending"
-                : "Suspended",
-          portfolio: user.artisan?.portfolio || [],
-        }));
-    }
-
-    return [];
+    const res = await apiClient.get(`/admin/users?status=${statusMap[tabStatus] || "ALL"}`);
+    const rawData = res.data.data;
+    if (!Array.isArray(rawData)) return [];
+    return rawData
+      .filter((user) => user.role === "ARTISAN")
+      .map((user) => ({
+        id:               user.artisan?.id || user.id,
+        userId:           user.id,
+        email:            user.email,
+        status:           user.status,
+        role:             user.role,
+        fullName:         user.artisan?.fullName || "Unknown",
+        specialty:        Array.isArray(user.artisan?.specialty) ? user.artisan.specialty : user.artisan?.specialty ? [user.artisan.specialty] : [],
+        whatsapp:         user.artisan?.whatsapp || "N/A",
+        location:         user.artisan?.city
+          ? `${user.artisan.city}${user.artisan.state ? ", " + user.artisan.state : ""}`
+          : "N/A",
+        registrationDate: user.createdAt
+          ? new Date(user.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })
+          : "N/A",
+        kycStatus:      user.kyc?.status        || "NOT_STARTED",
+        ninStatus:      user.kyc?.ninStatus     || null,
+        addressStatus:  user.kyc?.addressStatus || null,
+        addressVerifiedAt: user.kyc?.addressVerifiedAt || null,
+        ninVerifiedAt:  user.kyc?.ninVerifiedAt || null,
+        portfolio: user.artisan?.portfolio || [],
+      }));
   } catch (error) {
     console.error("Error fetching artisans:", error);
     throw error;
@@ -72,29 +66,11 @@ export async function getArtisans(tabStatus = "All") {
 }
 
 export async function approveArtisan(id) {
-  try {
-    const response = await axios.patch(
-      `${BASE_URL}/admin/approve/${id}`,
-      {},
-      getAuthHeaders(),
-    );
-    return response.data;
-  } catch (error) {
-    console.error(`Error approving artisan ${id}:`, error);
-    throw error.response?.data?.message || "Failed to approve artisan";
-  }
+  const res = await apiClient.patch(`/admin/approve/${id}`, {});
+  return res.data;
 }
 
 export async function rejectArtisan(id) {
-  try {
-    const response = await axios.patch(
-      `${BASE_URL}/admin/reject/${id}`,
-      {},
-      getAuthHeaders(),
-    );
-    return response.data;
-  } catch (error) {
-    console.error(`Error rejecting artisan ${id}:`, error);
-    throw error.response?.data?.message || "Failed to reject artisan";
-  }
+  const res = await apiClient.patch(`/admin/reject/${id}`, {});
+  return res.data;
 }

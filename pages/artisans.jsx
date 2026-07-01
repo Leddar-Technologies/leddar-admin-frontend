@@ -10,31 +10,30 @@ import {
   approveArtisan,
   rejectArtisan,
 } from "@/services/artisansService";
-import { Users, ShieldCheck, Clock, UserX, Search, Hammer } from "lucide-react";
+import { Users, ShieldCheck, Clock, UserX, Search, FileSearch } from "lucide-react";
 import { toast } from "react-hot-toast";
 
 const tabs = [
-  { id: "All", label: "All Artisans", icon: Users },
-  { id: "Pending Approval", label: "Pending", icon: Clock },
-  { id: "Verified", label: "Verified", icon: ShieldCheck },
-  { id: "Suspended", label: "Suspended", icon: UserX },
+  { id: "All",              label: "All Artisans", icon: Users },
+  { id: "Pending Approval", label: "Pending",      icon: Clock },
+  { id: "Verified",         label: "Verified",     icon: ShieldCheck },
+  { id: "KYC Pending",      label: "KYC Pending",  icon: FileSearch },
+  { id: "KYC Verified",     label: "KYC Verified", icon: ShieldCheck },
+  { id: "Suspended",        label: "Suspended",    icon: UserX },
 ];
 
 export default function ArtisansPage() {
-  const [activeTab, setActiveTab] = useState("All");
-  const [rows, setRows] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [actionLoading, setActionLoading] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [activeTab, setActiveTab]           = useState("All");
+  const [rows, setRows]                     = useState([]);
+  const [loading, setLoading]               = useState(true);
+  const [actionLoading, setActionLoading]   = useState(false);
+  const [searchQuery, setSearchQuery]       = useState("");
 
   const loadArtisans = async () => {
     try {
       setLoading(true);
-      const data = await getArtisans(activeTab);
-      const artisanOnlyData = Array.isArray(data)
-        ? data.filter((user) => user.role === "ARTISAN")
-        : [];
-      setRows(artisanOnlyData);
+      const data = await getArtisans("All");
+      setRows(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error("Failed to fetch artisans:", err);
       toast.error("Failed to load artisans");
@@ -46,25 +45,33 @@ export default function ArtisansPage() {
 
   useEffect(() => {
     loadArtisans();
-  }, [activeTab]);
+  }, []);
 
   const filteredRows = useMemo(() => {
-    let result = rows;
+    let result = [...rows];
 
-    if (activeTab === "Verified")
-      result = rows.filter((item) => item.status === "APPROVED");
-    if (activeTab === "Suspended")
-      result = rows.filter((item) => item.status === "REJECTED");
     if (activeTab === "Pending Approval")
-      result = rows.filter((item) => item.status === "PENDING");
+      result = result.filter((r) => r.status === "PENDING");
+    if (activeTab === "Verified")
+      result = result.filter((r) => r.status === "APPROVED");
+    if (activeTab === "KYC Pending")
+      result = result.filter(
+        (r) => r.kycStatus === "PENDING" || !r.kycStatus || r.kycStatus === "NOT_STARTED",
+      );
+    if (activeTab === "KYC Verified")
+      result = result.filter((r) => r.kycStatus === "VERIFIED");
+    if (activeTab === "Suspended")
+      result = result.filter((r) => r.status === "REJECTED");
 
     if (searchQuery) {
-      const query = searchQuery.toLowerCase();
+      const q = searchQuery.toLowerCase();
       result = result.filter(
-        (item) =>
-          item.fullName?.toLowerCase().includes(query) ||
-          item.specialty?.toLowerCase().includes(query) ||
-          item.email?.toLowerCase().includes(query),
+        (r) =>
+          r.fullName?.toLowerCase().includes(q) ||
+          r.email?.toLowerCase().includes(q) ||
+          (Array.isArray(r.specialty)
+            ? r.specialty.join(" ").toLowerCase().includes(q)
+            : r.specialty?.toLowerCase().includes(q)),
       );
     }
 
@@ -75,12 +82,12 @@ export default function ArtisansPage() {
     try {
       setActionLoading(true);
       const type = actionType.toLowerCase();
-      if (type === "approve" || type === "active") {
+      if (type === "approve") {
         await approveArtisan(id);
-        toast.success("Artisan verified successfully");
-      } else if (type === "reject" || type === "suspended") {
+        toast.success("Artisan approved");
+      } else if (type === "reject") {
         await rejectArtisan(id);
-        toast.success("Artisan status updated to suspended");
+        toast.success("Artisan suspended");
       }
       await loadArtisans();
     } catch (err) {
@@ -96,7 +103,7 @@ export default function ArtisansPage() {
       title="Artisan Management"
       subtitle="Verify credentials and manage specialized artisan profiles"
     >
-      {/* Search & Tabs Header */}
+      {/* Tabs + Search */}
       <div className="mb-8 flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex flex-wrap items-center gap-2 rounded-2xl bg-white p-1.5 shadow-sm border border-[#E8DED5]">
           {tabs.map((tab) => {
@@ -112,16 +119,13 @@ export default function ArtisansPage() {
                     : "text-[#6A5B54] hover:bg-atmosphere hover:text-leather"
                 }`}
               >
-                <Icon
-                  className={`h-4 w-4 ${isActive ? "text-gold" : "text-[#A39289]"}`}
-                />
+                <Icon className={`h-4 w-4 ${isActive ? "text-gold" : "text-[#A39289]"}`} />
                 {tab.label}
               </button>
             );
           })}
         </div>
 
-        {/* Search Bar */}
         <div className="relative group max-w-sm w-full">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-[#A39289] group-focus-within:text-leather transition-colors" />
           <input
@@ -134,33 +138,7 @@ export default function ArtisansPage() {
         </div>
       </div>
 
-      {/* Stats Summary */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8 text-xs font-bold uppercase tracking-widest text-[#A39289]">
-        <div className="bg-white p-4 rounded-2xl border border-[#E8DED5] flex flex-col gap-1">
-          <span>Total Artisans</span>
-          <span className="text-xl text-ink">{filteredRows.length}</span>
-        </div>
-        <div className="bg-white p-4 rounded-2xl border border-[#E8DED5] flex flex-col gap-1">
-          <span>Verified</span>
-          <span className="text-xl text-emerald-600">
-            {rows.filter((r) => r.status === "APPROVED").length}
-          </span>
-        </div>
-        <div className="bg-white p-4 rounded-2xl border border-[#E8DED5] flex flex-col gap-1">
-          <span>Pending</span>
-          <span className="text-xl text-amber-500">
-            {rows.filter((r) => r.status === "PENDING").length}
-          </span>
-        </div>
-        <div className="bg-white p-4 rounded-2xl border border-[#E8DED5] flex flex-col gap-1">
-          <span>Suspended</span>
-          <span className="text-xl text-rose-500">
-            {rows.filter((r) => r.status === "REJECTED").length}
-          </span>
-        </div>
-      </div>
-
-      {/* Table Section */}
+      {/* Table */}
       <div className="relative overflow-hidden rounded-3xl border border-[#E8DED5] bg-white shadow-xl shadow-ink/5">
         {loading ? (
           <div className="flex h-96 items-center justify-center">
@@ -191,14 +169,11 @@ export default function ArtisansPage() {
                   <td colSpan="6" className="py-32 text-center">
                     <div className="flex flex-col items-center gap-3">
                       <div className="w-16 h-16 bg-atmosphere rounded-full flex items-center justify-center mb-2">
-                        <Hammer className="w-8 h-8 text-[#D7CBC1]" />
+                        <Users className="w-8 h-8 text-[#D7CBC1]" />
                       </div>
-                      <h3 className="text-lg font-bold text-ink">
-                        No artisans found
-                      </h3>
-                      <p className="text-sm text-[#A39289] max-w-[240px]">
-                        We couldn&apos;t find anyone in the{" "}
-                        <strong>{activeTab}</strong> category.
+                      <h3 className="text-lg font-bold text-ink">No artisans found</h3>
+                      <p className="text-sm text-[#A39289]">
+                        Try adjusting your search or filters.
                       </p>
                     </div>
                   </td>
@@ -209,7 +184,7 @@ export default function ArtisansPage() {
         )}
 
         {actionLoading && (
-          <div className="absolute inset-0 z-20 flex items-center justify-center bg-white/60 backdrop-blur-[2px] transition-all">
+          <div className="absolute inset-0 z-20 flex items-center justify-center bg-white/60 backdrop-blur-[2px]">
             <div className="bg-white p-6 rounded-2xl shadow-2xl flex flex-col items-center gap-3">
               <Spinner size="md" color="leather" />
               <p className="text-xs font-bold text-ink uppercase tracking-widest">

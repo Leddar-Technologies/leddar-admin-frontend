@@ -1,168 +1,318 @@
-import { Fragment, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import PageWrapper from '@/components/layout/PageWrapper';
-import Table from '@/components/ui/Table';
 import Modal from '@/components/ui/Modal';
-import CommissionCard from '@/components/ui/CommissionCard';
-import PaymentRow from '@/components/admin/PaymentRow';
-import { formatCurrency } from '@/lib/utils';
-import { calculateCommissionBreakdown, getCommissionSettings } from '@/services/commissionService';
-import { getPayments, markInvoicePaid, releaseStage } from '@/services/paymentsService';
-import { getOrders } from '@/services/ordersService';
-import { getJobs } from '@/services/jobsService';
+import Badge from '@/components/ui/Badge';
+import Spinner from '@/components/ui/Spinner';
+import AdminRoute from '@/components/auth/AdminRoute';
+import { formatCurrency, formatDate } from '@/lib/utils';
+import { getCommissionSettings, calculateCommissionBreakdown } from '@/services/commissionService';
+import { getPayments, markInvoicePaid, releaseStage, getSamplePayments, generateInvoice, getVatSummary, getFIRSRemittances, createFIRSRemittance, getAdminEarnings, createAdminPayout, finalizeAdminPayout } from '@/services/paymentsService';
+import { getAllJobsFromOrders, releaseSamplePayment } from '@/services/jobsService';
+import { FileText, Landmark, RefreshCw, CheckCircle2, Clock, Plus, ArrowDownToLine, AlertCircle, Loader2, Building2, TrendingUp } from 'lucide-react';
+
+// Naira icon — inline SVG component to replace lucide's NairaIcon
+const NairaIcon = ({ className = "h-4 w-4" }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+    <line x1="5" y1="8" x2="19" y2="8" />
+    <line x1="5" y1="16" x2="19" y2="16" />
+    <path d="M6 4 L18 20" />
+    <path d="M18 4 L6 20" />
+  </svg>
+);
 
 export default function PaymentsPage() {
-  const [payments, setPayments] = useState([]);
-  const [settings, setSettings] = useState(null);
-  const [orderMap, setOrderMap] = useState({});
-  const [jobMap, setJobMap] = useState({});
-  const [expandedRows, setExpandedRows] = useState({});
-  const [confirmModal, setConfirmModal] = useState({ open: false, payment: null, stage: 1, amount: 0 });
-  const [toast, setToast] = useState('');
+  const [activeTab, setActiveTab]     = useState('production');
+  const [payments, setPayments]       = useState([]);
+  const [samplePayments, setSamplePayments] = useState([]);
+  const [settings, setSettings]       = useState(null);
+  const [loading, setLoading]         = useState(true);
+  const [actionLoading, setActionLoading] = useState(false);
+  const [toast, setToast]             = useState({ msg: '', isError: false });
+  const [confirmModal, setConfirmModal] = useState({
+    open: false, orderId: null, stage: 1, amount: 0, artisan: '',
+    orderRef: '', escrowBalance: 0, breakdown: null,
+    bankDetail: null, hasBankDetails: false,
+  });
+  const [vatData, setVatData] = useState({ summary: {}, records: [] });
+  const [pendingSampleJobs, setPendingSampleJobs] = useState([]);
+  const [sampleReleaseModal, setSampleReleaseModal] = useState({ open: false, jobId: null, artisan: '', orderRef: '', flatFee: 0, brandPaidTotal: 0, bankDetail: null, hasBankDetails: false });
+  const [sampleReleaseResult, setSampleReleaseResult] = useState(null);
+  const [sampleAlreadyReleased, setSampleAlreadyReleased] = useState(false);
+  const [firsRemittances, setFirsRemittances]   = useState([]);
+  const [firsModal, setFirsModal]               = useState({ open: false, amount: '', note: '' });
+  const [firsLoading, setFirsLoading]           = useState(false);
 
-  useEffect(() => {
-    async function loadData() {
-      const [paymentsData, settingsData, ordersData, jobsData] = await Promise.all([
+  // Admin commission / withdrawal
+  const [adminEarnings, setAdminEarnings]       = useState({ totalEarned: 0, totalWithdrawn: 0, outstanding: 0, payoutCount: 0, payouts: [] });
+  const [withdrawModal, setWithdrawModal]       = useState({ open: false, amount: '', note: '', otpStep: false, payoutId: null, otp: '' });
+  const [withdrawLoading, setWithdrawLoading]   = useState(false);
+  const [withdrawError, setWithdrawError]       = useState('');
+  const [withdrawSuccess, setWithdrawSuccess]   = useState('');
+
+  const showToast = (msg, isError = false) => {
+    setToast({ msg, isError });
+    setTimeout(() => setToast({ msg: '', isError: false }), 3000);
+  };
+
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      const [paymentsData, settingsData, sampleData, allJobs, vatResult, remittances, earnings] = await Promise.all([
         getPayments(),
         getCommissionSettings(),
-        getOrders(),
-        getJobs(),
+        getSamplePayments(),
+        getAllJobsFromOrders(),
+        getVatSummary(),
+        getFIRSRemittances(),
+        getAdminEarnings(),
       ]);
-
       setPayments(paymentsData);
       setSettings(settingsData);
-      setOrderMap(Object.fromEntries(ordersData.map((order) => [order.id, order])));
-      setJobMap(Object.fromEntries(jobsData.map((job) => [job.orderId, job])));
+      setSamplePayments(sampleData);
+      setVatData(vatResult);
+      setFirsRemittances(remittances);
+      setAdminEarnings(earnings);
+      setPendingSampleJobs(
+        allJobs.filter((j) => j.type === 'SAMPLE' && ['IN_PROGRESS', 'VIDEO_UPLOADED', 'SAMPLE_APPROVED', 'COMPLETED'].includes(j.status) && !j.samplePaymentReleased)
+      );
+    } catch (err) {
+      showToast('Failed to load payment data.', true);
+    } finally {
+      setLoading(false);
     }
-
-    loadData();
-  }, []);
-
-  const paymentsWithBreakdown = useMemo(() => {
-    if (!settings) return [];
-    return payments.map((payment) => ({
-      ...payment,
-      breakdown: calculateCommissionBreakdown(payment.fullAmount, payment.type, settings),
-    }));
-  }, [payments, settings]);
-
-  const headlineTotals = {
-    totalEscrow: 840000,
-    totalCommission: 126000,
-    totalReleased: 504000,
   };
 
-  const refresh = async () => {
-    setPayments(await getPayments());
+  const handleDownloadInvoice = async (orderId, ref) => {
+    try {
+      const blob = await generateInvoice(orderId);
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement('a');
+      a.href     = url;
+      a.download = `INV-${ref || orderId.slice(0, 8).toUpperCase()}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      showToast('Failed to generate invoice.', true);
+    }
   };
 
-  const handleMarkPaid = async (paymentId) => {
-    await markInvoicePaid(paymentId);
-    await refresh();
-  };
+  useEffect(() => { loadData(); }, []);
 
-  const openStageConfirm = (payment, amount, stage) => {
-    setConfirmModal({ open: true, payment, stage, amount });
+  // Real headline totals derived from actual data
+  const totals = useMemo(() => {
+    const totalEscrow     = payments.reduce((s, p) => s + (p.escrowBalance || 0), 0);
+    const totalReleased   = payments.reduce((s, p) => {
+      const released = p.payments?.filter((r) => r.status === 'RELEASED').reduce((a, r) => a + r.amount, 0) || 0;
+      return s + released;
+    }, 0);
+    const totalCommission = settings
+      ? payments.reduce((s, p) => {
+          const b = calculateCommissionBreakdown(p.fullAmount, p.type, settings);
+          return s + (b?.adminCommission || 0);
+        }, 0)
+      : 0;
+    // Sample payment totals
+    const sampleTotalReleased    = samplePayments.reduce((s, p) => s + (p.artisanAmount || 0), 0);
+    const sampleTotalCommission  = samplePayments.reduce((s, p) => s + (p.adminCommission || 0), 0);
+    const sampleTotalVat         = samplePayments.reduce((s, p) => s + (p.vatAmount || 0), 0);
+    return { totalEscrow, totalCommission, totalReleased, sampleTotalReleased, sampleTotalCommission, sampleTotalVat };
+  }, [payments, settings, samplePayments]);
+
+  // Build a settings-like object from the order's snapshotted rates (preferred) or live settings (fallback)
+  const snapshotSettingsFor = (payment) => ({
+    adminRate:         (payment.snapshotAdminRate   ?? settings?.adminRate         ?? 0.15) * 100,
+    artisanStage1Rate: (payment.snapshotStage1Rate  ?? settings?.artisanStage1Rate ?? 0.40) * 100,
+    artisanStage2Rate: (payment.snapshotStage2Rate  ?? settings?.artisanStage2Rate ?? 0.45) * 100,
+    sampleAdminRate:   (payment.snapshotSampleAdminRate ?? settings?.sampleAdminRate ?? 0.30) * 100,
+  });
+
+  const openConfirm = (payment, stage) => {
+    const isLegacySampleWithEscrow = payment.type === 'SAMPLE' && payment.escrowBalance > 0;
+    const effectiveSettings = snapshotSettingsFor(payment);
+    const b = calculateCommissionBreakdown(
+      isLegacySampleWithEscrow ? payment.escrowBalance : payment.escrowBalance || payment.fullAmount,
+      isLegacySampleWithEscrow ? 'PRODUCTION' : payment.type,
+      effectiveSettings
+    );
+    const amount = stage === 1 ? (b?.stage1Amount || 0) : (b?.stage2Amount || 0);
+    setConfirmModal({
+      open:           true,
+      orderId:        payment.orderId,
+      orderRef:       payment.orderRef || payment.orderId?.slice(0, 8).toUpperCase(),
+      stage,
+      amount,
+      artisan:        payment.artisan || '—',
+      escrowBalance:  payment.escrowBalance || 0,
+      breakdown:      b,
+      bankDetail:     payment.artisanBankDetail || null,
+      hasBankDetails: payment.artisanHasBankDetails || false,
+    });
   };
 
   const confirmRelease = async () => {
-    await releaseStage(confirmModal.payment.id, confirmModal.stage);
-    setConfirmModal({ open: false, payment: null, stage: 1, amount: 0 });
-    await refresh();
-    setToast('WhatsApp notification sent to artisan.');
-    setTimeout(() => setToast(''), 2000);
+    setActionLoading(true);
+    try {
+      await releaseStage(confirmModal.orderId, confirmModal.stage);
+      setConfirmModal({ open: false, orderId: null, stage: 1, amount: 0, artisan: '', orderRef: '', escrowBalance: 0, breakdown: null, bankDetail: null, hasBankDetails: false });
+      await loadData();
+      showToast(`Stage ${confirmModal.stage} payment released. WhatsApp notification sent to artisan.`);
+    } catch (err) {
+      showToast(err.response?.data?.message || 'Release failed.', true);
+    } finally {
+      setActionLoading(false);
+    }
   };
 
-  const toggleExpand = (paymentId) => {
-    setExpandedRows((prev) => ({
-      ...prev,
-      [paymentId]: !prev[paymentId],
-    }));
+  const handleReleaseSamplePayment = async () => {
+    if (!sampleReleaseModal.hasBankDetails) {
+      showToast('Cannot release — artisan has not added their bank account yet.', true);
+      return;
+    }
+    setActionLoading(true);
+    setSampleReleaseResult(null);
+    setSampleAlreadyReleased(false);
+    try {
+      const result = await releaseSamplePayment(sampleReleaseModal.jobId);
+      const breakdown = result.data?.breakdown || null;
+      setSampleReleaseResult(breakdown);
+      await loadData();
+      // Use actual artisanAmount from the server response; fall back to live sampleAdminRate if somehow absent
+      const releasedAmt = breakdown?.artisanAmount
+        ?? Math.round((1 - (settings?.sampleAdminRate ?? 0.30)) * sampleReleaseModal.flatFee);
+      showToast(`✓ ₦${releasedAmt.toLocaleString('en-NG')} released to ${sampleReleaseModal.artisan} via Paystack`);
+    } catch (err) {
+      const msg = err.response?.data?.message || '';
+      const isAlreadyReleased = msg.toLowerCase().includes('already released');
+      if (isAlreadyReleased) {
+        setSampleAlreadyReleased(true);
+        await loadData(); // refresh so the job moves to history and stats update
+        showToast('This payment was already released to the artisan.', false);
+      } else {
+        showToast(msg || 'Payment release failed. Please try again.', true);
+      }
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleWithdraw = async () => {
+    const amt = Number(withdrawModal.amount);
+    if (!amt || amt <= 0) { setWithdrawError('Enter a valid amount.'); return; }
+    setWithdrawLoading(true); setWithdrawError(''); setWithdrawSuccess('');
+    try {
+      const result = await createAdminPayout({ amount: amt, note: withdrawModal.note });
+      if (result.requiresOtp) {
+        // Paystack needs OTP — switch modal to OTP entry step
+        setWithdrawModal((prev) => ({ ...prev, otpStep: true, payoutId: result.data?.payoutId, otp: '' }));
+        setWithdrawError('');
+      } else if (result.success) {
+        setWithdrawSuccess(result.message || 'Withdrawal initiated successfully.');
+        const earnings = await getAdminEarnings();
+        setAdminEarnings(earnings);
+        setTimeout(() => {
+          setWithdrawModal({ open: false, amount: '', note: '', otpStep: false, payoutId: null, otp: '' });
+          setWithdrawSuccess('');
+        }, 2500);
+      } else {
+        setWithdrawError(result.message || 'Withdrawal failed.');
+      }
+    } catch (err) {
+      setWithdrawError(err?.response?.data?.message || 'Failed to initiate withdrawal.');
+    } finally {
+      setWithdrawLoading(false);
+    }
+  };
+
+  const handleOtpConfirm = async () => {
+    if (!withdrawModal.otp.trim()) { setWithdrawError('Enter the OTP from your email/phone.'); return; }
+    setWithdrawLoading(true); setWithdrawError(''); setWithdrawSuccess('');
+    try {
+      const result = await finalizeAdminPayout({ payoutId: withdrawModal.payoutId, otp: withdrawModal.otp.trim() });
+      if (result.success) {
+        setWithdrawSuccess(result.message || 'Transfer confirmed.');
+        const earnings = await getAdminEarnings();
+        setAdminEarnings(earnings);
+        setTimeout(() => {
+          setWithdrawModal({ open: false, amount: '', note: '', otpStep: false, payoutId: null, otp: '' });
+          setWithdrawSuccess('');
+        }, 2500);
+      } else {
+        setWithdrawError(result.message || 'OTP verification failed.');
+      }
+    } catch (err) {
+      setWithdrawError(err?.response?.data?.message || 'Incorrect OTP. Please try again.');
+    } finally {
+      setWithdrawLoading(false);
+    }
+  };
+
+  const handleMarkPaid = async (invoiceId) => {
+    try {
+      await markInvoicePaid(invoiceId);
+      await loadData();
+      showToast('Invoice marked as paid. Order closed.');
+    } catch (err) {
+      showToast(err.response?.data?.message || 'Failed to mark invoice paid.', true);
+    }
   };
 
   return (
-    <PageWrapper title="Escrow & Payment Management">
-      {toast ? <div className="mb-4 rounded-xl bg-success/15 px-4 py-2 text-sm font-semibold text-success">{toast}</div> : null}
+    <AdminRoute>
+      <PageWrapper title="Escrow & Payment Management" subtitle="Manage escrow releases and invoice payments">
 
-      <section className="mb-6 grid gap-4 md:grid-cols-3">
-        <article className="rounded-xl bg-gold p-5 text-espresso shadow-card">
-          <p className="text-sm">Total Held in Escrow</p>
-          <h3 className="mt-2 text-2xl font-extrabold">{formatCurrency(headlineTotals.totalEscrow)}</h3>
-        </article>
-        <article className="rounded-xl bg-leather p-5 text-neutral-50 shadow-card">
-          <p className="text-sm">Total Commission Earned</p>
-          <h3 className="mt-2 text-2xl font-extrabold">{formatCurrency(headlineTotals.totalCommission)}</h3>
-        </article>
-        <article className="rounded-xl bg-success p-5 text-neutral-50 shadow-card">
-          <p className="text-sm">Total Released to Artisans</p>
-          <h3 className="mt-2 text-2xl font-extrabold">{formatCurrency(headlineTotals.totalReleased)}</h3>
-        </article>
-      </section>
+        {/* Toast — fixed over modal so it's always visible */}
+        {toast.msg && (
+          <div className={`fixed top-5 left-1/2 -translate-x-1/2 z-[9999] flex items-center gap-3 rounded-2xl px-5 py-3.5 text-sm font-semibold shadow-xl border transition-all ${
+            toast.isError
+              ? 'bg-red-50 text-red-700 border-red-200'
+              : 'bg-emerald-50 text-emerald-800 border-emerald-200'
+          }`}>
+            <span className="text-base">{toast.isError ? '✕' : '✓'}</span>
+            {toast.msg}
+          </div>
+        )}
 
-      <Table
-        headers={[
-          'Order ID',
-          'Brand',
-          'Artisan',
-          'Type',
-          'Full Amount',
-          'Admin Commission',
-          'Stage 1 Amount',
-          'Stage 2 Amount',
-          'Escrow Status',
-          'Actions',
-        ]}
-      >
-        {paymentsWithBreakdown.map((payment) => {
-          const order = orderMap[payment.orderId];
-          const job = jobMap[payment.orderId];
-          const canReleaseStage1 = order?.status === 'In Production';
-          const canReleaseStage2 = job?.status === 'Completed' || order?.status === 'Delivered';
-
-          return (
-            <Fragment key={payment.id}>
-              <PaymentRow
-                payment={payment}
-                breakdown={payment.breakdown}
-                canReleaseStage1={canReleaseStage1}
-                canReleaseStage2={canReleaseStage2}
-                onReleaseStage1={(item, amount) => openStageConfirm(item, amount, 1)}
-                onReleaseStage2={(item, amount) => openStageConfirm(item, amount, 2)}
-                onMarkPaid={handleMarkPaid}
-                onToggleExpand={toggleExpand}
-              />
-              {expandedRows[payment.id] ? (
-                <tr>
-                  <td className="px-4 py-4" colSpan={10}>
-                    <CommissionCard breakdown={payment.breakdown} title={`Split for ${payment.orderId}`} />
-                  </td>
-                </tr>
-              ) : null}
-            </Fragment>
-          );
-        })}
-      </Table>
-
-      <Modal
-        title={`Release Stage ${confirmModal.stage}`}
-        open={confirmModal.open}
-        onClose={() => setConfirmModal({ open: false, payment: null, stage: 1, amount: 0 })}
-      >
-        <p className="text-sm text-muted-300">
-          Release {formatCurrency(confirmModal.amount)} to {confirmModal.payment?.artisan}? This action cannot be undone.
-        </p>
-        <div className="mt-4">
+        {/* Tabs */}
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap gap-2">
+            {[
+              { id: 'production', label: 'Production Escrow' },
+              { id: 'sample',     label: 'Sample Payments' },
+              { id: 'admin',      label: 'Admin Commission' },
+              { id: 'vat',        label: 'VAT (FIRS)' },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`rounded-xl px-4 py-2 text-sm font-semibold transition-colors ${
+                  activeTab === tab.id
+                    ? 'bg-leather text-white'
+                    : 'bg-[#F4EFEA] text-[#6A5B54] hover:bg-atmosphere'
+                }`}
+              >
+                {tab.label}
+                {tab.id === 'sample' && pendingSampleJobs.length > 0 && (
+                  <span className={`ml-1.5 rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
+                    activeTab === tab.id ? 'bg-white/20 text-white' : 'bg-amber-100 text-amber-700'
+                  }`}>{pendingSampleJobs.length} pending</span>
+                )}
+                {tab.id === 'admin' && adminEarnings.outstanding > 0 && (
+                  <span className={`ml-1.5 rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
+                    activeTab === tab.id ? 'bg-white/20 text-white' : 'bg-amber-100 text-amber-700'
+                  }`}>withdraw</span>
+                )}
+              </button>
+            ))}
+          </div>
           <button
-            type="button"
-            className="rounded-xl bg-leather px-4 py-2 text-sm font-semibold text-neutral-50"
-            onClick={confirmRelease}
+            onClick={loadData}
+            disabled={loading}
+            className="flex items-center gap-2 rounded-xl border border-[#E8DED5] bg-white px-3 py-2 text-sm font-medium text-[#6A5B54] hover:bg-atmosphere"
           >
-            Confirm Release
+            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+            Refresh
           </button>
         </div>
-<<<<<<< Updated upstream
-      </Modal>
-    </PageWrapper>
-=======
 
         {/* Headline stats */}
         {activeTab === 'production' && (
@@ -1207,6 +1357,5 @@ export default function PaymentsPage() {
         })()}
       </PageWrapper>
     </AdminRoute>
->>>>>>> Stashed changes
-  );
+    );
 }

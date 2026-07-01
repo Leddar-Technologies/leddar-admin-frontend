@@ -1,92 +1,63 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import {
-  Bell,
-  ClipboardCheck,
-  Package,
-  Settings,
-  UserCheck,
-  Wallet,
+  Bell, ClipboardCheck, Package, Settings, UserCheck, Wallet,
 } from "lucide-react";
 import PageWrapper from "../components/layout/PageWrapper";
 import Button from "../components/ui/Button";
 import StatCard from "../components/ui/StatCard";
 import { formatCurrency } from "../lib/utils";
-// Import from your authService to keep keys consistent
 import { getSession, logout } from "../services/authService";
+import { getDashboardStats } from "../services/dashboardService";
 
-const iconMap = {
-  UserCheck,
-  ClipboardCheck,
-  Package,
-  Wallet,
-  Bell,
-  Settings,
-};
+const iconMap = { UserCheck, ClipboardCheck, Package, Wallet, Bell, Settings };
+
+function timeAgo(dateStr) {
+  const seconds = Math.floor((Date.now() - new Date(dateStr)) / 1000);
+  if (seconds < 60)  return `${seconds}s ago`;
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
+  return `${Math.floor(seconds / 86400)}d ago`;
+}
 
 export default function DashboardPage() {
   const router = useRouter();
-  const [stats, setStats] = useState(null);
+  const [stats, setStats]           = useState(null);
   const [activities, setActivities] = useState([]);
   const [authorized, setAuthorized] = useState(false);
+  const [error, setError]           = useState("");
 
   useEffect(() => {
-    // 1. Check session using the unified service
     const session = getSession();
-
     if (!session?.token || session?.role !== "ADMIN") {
-      console.log("Unauthorized access attempt, redirecting to login...");
       router.replace("/login");
       return;
     }
-
     setAuthorized(true);
 
-    // 2. Load Data with Fallbacks
     async function loadData() {
       try {
-        // Replace these with your actual API calls when ready
-        // const [statsRes, activityRes] = await Promise.all([getDashboardStats(), getRecentActivities()]);
-
-        // MOCK DATA: This ensures the page doesn't hang while you're developing
+        const data = await getDashboardStats();
         setStats({
-          totalBrands: 12,
-          totalArtisans: 45,
-          activeOrders: 8,
-          pendingApprovals: 3,
-          totalEscrowBalance: 12500.5,
-          totalCommissionEarned: 1200.0,
+          totalBrands:           data.totalBrands,
+          totalArtisans:         data.totalArtisans,
+          activeOrders:          data.activeOrders,
+          pendingApprovals:      data.pendingApprovals,
+          totalEscrowBalance:    data.totalEscrowBalance,
         });
-
-        setActivities([
-          {
-            id: 1,
-            title: "New Artisan joined",
-            detail: "Oluwaseun added a new portfolio",
-            icon: "UserCheck",
-            timestamp: "2 mins ago",
-          },
-          {
-            id: 2,
-            title: "Order Completed",
-            detail: "Order #1204 has been delivered",
-            icon: "Package",
-            timestamp: "1 hour ago",
-          },
-        ]);
+        setActivities(data.recentActivity || []);
       } catch (err) {
         console.error("Failed to load dashboard data:", err);
+        setError("Could not load dashboard data. Check your connection.");
       }
     }
 
     loadData();
   }, [router]);
 
-  const onLogout = () => {
-    logout(); // Uses the logic in authService.js
-  };
+  const onLogout = () => logout();
 
-  if (!authorized || !stats) {
+  if (!authorized || (!stats && !error)) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-cream">
         <div className="flex flex-col items-center gap-3 rounded-xl bg-neutral-50 px-6 py-5 shadow-card">
@@ -111,21 +82,22 @@ export default function DashboardPage() {
         </Button>
       }
     >
+      {error && (
+        <div className="mb-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+          {error}
+        </div>
+      )}
+
       {/* Statistics Grid */}
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        <StatCard title="Total Brands" value={stats.totalBrands} />
-        <StatCard title="Total Artisans" value={stats.totalArtisans} />
-        <StatCard title="Active Orders" value={stats.activeOrders} />
-        <StatCard title="Pending Approvals" value={stats.pendingApprovals} />
-        <StatCard
-          title="Total Escrow Balance"
-          value={formatCurrency(stats.totalEscrowBalance)}
-        />
-        <StatCard
-          title="Total Commission Earned"
-          value={formatCurrency(stats.totalCommissionEarned)}
-        />
-      </section>
+      {stats && (
+        <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          <StatCard title="Total Brands"        value={stats.totalBrands} />
+          <StatCard title="Total Artisans"      value={stats.totalArtisans} />
+          <StatCard title="Active Orders"       value={stats.activeOrders} />
+          <StatCard title="Pending Approvals"   value={stats.pendingApprovals} />
+          <StatCard title="Total Escrow Balance" value={formatCurrency(stats.totalEscrowBalance)} />
+        </section>
+      )}
 
       {/* Activity List */}
       <section className="mt-8 rounded-2xl bg-white p-6 shadow-sm border border-[#E8DED5]">
@@ -135,7 +107,7 @@ export default function DashboardPage() {
         <ul className="mt-5 space-y-4">
           {activities.length > 0 ? (
             activities.map((activity) => {
-              const Icon = iconMap[activity.icon] || Bell;
+              const Icon = iconMap[activity.icon] || Package;
               return (
                 <li
                   key={activity.id}
@@ -145,15 +117,14 @@ export default function DashboardPage() {
                     <Icon size={18} />
                   </span>
                   <div className="flex-1">
-                    <p className="text-sm font-bold text-[#1A1513]">
-                      {activity.title}
-                    </p>
-                    <p className="text-xs text-[#5A4B44] mt-0.5">
-                      {activity.detail}
-                    </p>
+                    <p className="text-sm font-bold text-[#1A1513]">{activity.title}</p>
+                    <p className="text-xs text-[#5A4B44] mt-0.5">{activity.detail}</p>
+                    {activity.note && (
+                      <p className="text-xs text-[#A39289] mt-0.5 italic">{activity.note}</p>
+                    )}
                   </div>
-                  <span className="text-[10px] font-medium uppercase tracking-wider text-[#A39289]">
-                    {activity.timestamp}
+                  <span className="text-[10px] font-medium uppercase tracking-wider text-[#A39289] whitespace-nowrap">
+                    {timeAgo(activity.timestamp)}
                   </span>
                 </li>
               );

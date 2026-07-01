@@ -7,8 +7,10 @@ export default function PageWrapper({ title, children, actions }) {
 
   return (
     <div className="flex min-h-screen bg-cream">
-      <div className="hidden lg:block">
-        <Sidebar />
+      <div className="hidden lg:block w-72 shrink-0">
+        <div className="fixed top-0 left-0 h-screen w-72 overflow-y-auto">
+          <Sidebar />
+        </div>
       </div>
 
       {mobileOpen ? (
