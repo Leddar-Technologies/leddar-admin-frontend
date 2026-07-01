@@ -194,6 +194,7 @@ export default function JobsPage() {
         </form>
       </Modal>
 
+<<<<<<< Updated upstream
       <Modal title="Review Video" open={reviewModal.open} onClose={() => setReviewModal({ open: false, job: null })}>
         <div className="space-y-4">
           <div className="aspect-video rounded-xl bg-neutral-200 p-4 text-sm text-muted-200">
@@ -206,5 +207,199 @@ export default function JobsPage() {
         </div>
       </Modal>
     </PageWrapper>
+=======
+              <form className="space-y-4" onSubmit={submitAssign}>
+                {/* Artisan filters */}
+                <div className="flex gap-2">
+                  <div className="flex-1">
+                    <label className="block text-xs font-semibold text-[#A39289] uppercase mb-1">Filter by Specialty</label>
+                    <select
+                      value={filterSpecialty}
+                      onChange={(e) => { setFilterSpecialty(e.target.value); setSelectedArtisan(""); }}
+                      className="w-full rounded-xl border border-[#E8DED5] px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-leather/20 focus:border-leather bg-white"
+                    >
+                      <option value="">All Specialties</option>
+                      {[
+                        { value: "SHOES_AND_BOOTS",        label: "Shoes & Boots" },
+                        { value: "SLIPPERS_AND_SANDALS",   label: "Slippers & Sandals" },
+                        { value: "WOMEN_BAGS",             label: "Women Bags" },
+                        { value: "OFFICE_AND_TRAVEL_BAGS", label: "Office & Travel Bags" },
+                        { value: "WALLETS_AND_BELTS",      label: "Wallets & Belts" },
+                        { value: "SMALL_LEATHER_GOODS",    label: "Small Leather Goods" },
+                        { value: "LEATHER_WEARS",          label: "Leather Wears" },
+                        { value: "OTHERS",                 label: "Others" },
+                      ].map((s) => (
+                        <option key={s.value} value={s.value}>{s.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="flex-1">
+                    <label className="block text-xs font-semibold text-[#A39289] uppercase mb-1">Min. Capacity/wk</label>
+                    <input
+                      type="number"
+                      min={0}
+                      value={filterMinCapacity}
+                      onChange={(e) => { setFilterMinCapacity(e.target.value); setSelectedArtisan(""); }}
+                      placeholder="e.g. 10"
+                      className="w-full rounded-xl border border-[#E8DED5] px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-leather/20 focus:border-leather"
+                    />
+                  </div>
+                </div>
+
+                {/* Artisan picker */}
+                <div>
+                  <label className="block text-sm font-semibold text-ink mb-1">
+                    Select Artisan{" "}
+                    <span className="text-xs font-normal text-[#A39289]">
+                      ({filteredArtisans.length} KYC-verified
+                      {filteredArtisans.length !== availableArtisans.length
+                        ? `, filtered from ${availableArtisans.length}`
+                        : ""})
+                    </span>
+                  </label>
+                  {filteredArtisans.length === 0 ? (
+                    <p className="text-sm text-amber-600 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2">
+                      {availableArtisans.length === 0
+                        ? "No KYC-verified artisans are currently available."
+                        : "No artisans match the current filters."}
+                    </p>
+                  ) : (
+                    <div className="space-y-2 max-h-52 overflow-y-auto rounded-xl border border-[#E8DED5] p-2">
+                      {filteredArtisans.map((a) => {
+                        const specs = Array.isArray(a.specialty) ? a.specialty : (a.specialty ? [a.specialty] : []);
+                        const wasDeclined = a.previouslyDeclined;
+                        const wasExpired  = a.previouslyExpired;
+                        const wasRejected = wasDeclined || wasExpired;
+                        return (
+                          <label key={a.id}
+                            className={`flex items-center gap-3 rounded-xl p-3 cursor-pointer transition-colors ${
+                              selectedArtisan === a.id
+                                ? "bg-atmosphere border border-leather"
+                                : wasRejected
+                                ? "hover:bg-red-50/50 border border-red-100 bg-red-50/30"
+                                : "hover:bg-atmosphere/50 border border-transparent"
+                            }`}>
+                            <input
+                              type="radio"
+                              name="artisan"
+                              value={a.id}
+                              checked={selectedArtisan === a.id}
+                              onChange={() => setSelectedArtisan(a.id)}
+                              className="accent-leather"
+                            />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-semibold text-ink">{a.fullName}</p>
+                              <p className="text-xs text-[#A39289]">
+                                {a.user?.email || "—"}
+                                {specs.length > 0 ? ` · ${specs.map(s => s.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, c => c.toUpperCase())).join(", ")}` : ""}
+                                {a.capacityPerWeek ? ` · ${a.capacityPerWeek} units/wk` : ""}
+                              </p>
+                            </div>
+                            <div className="flex shrink-0 items-center gap-1.5">
+                              {wasDeclined && (
+                                <span className="rounded-full bg-red-50 border border-red-200 px-2 py-0.5 text-[10px] font-bold text-red-600">
+                                  Declined
+                                </span>
+                              )}
+                              {wasExpired && !wasDeclined && (
+                                <span className="rounded-full bg-orange-50 border border-orange-200 px-2 py-0.5 text-[10px] font-bold text-orange-600">
+                                  Offer Expired
+                                </span>
+                              )}
+                              <span className="rounded-full bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-[10px] font-bold text-emerald-700">KYC ✓</span>
+                            </div>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* Deadline */}
+                <div>
+                  <label className="block text-sm font-semibold text-ink mb-1">
+                    Delivery Deadline (days from today) <span className="text-red-500">*</span>
+                  </label>
+                  {assignType === "PRODUCTION" && selectedOrder.quote?.timeline && (
+                    <div className="mb-2 flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-700">
+                      <Calendar className="h-3.5 w-3.5 shrink-0" />
+                      <span>
+                        Set from brand&apos;s timeline: <strong>{TIMELINE_LABEL[selectedOrder.quote.timeline] || selectedOrder.quote.timeline}</strong>. Adjust if needed.
+                      </span>
+                    </div>
+                  )}
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="number"
+                      min="1"
+                      value={deadlineDays}
+                      required
+                      onChange={(e) => setDeadlineDays(e.target.value)}
+                      className="w-28 rounded-xl border border-[#E8DED5] px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-leather/20 focus:border-leather"
+                    />
+                    <span className="text-sm text-[#A39289]">days</span>
+                    {deadlineDays > 0 && (
+                      <span className="text-xs text-[#6A5B54]">
+                        → <strong>{new Date(Date.now() + Number(deadlineDays) * 86400000).toLocaleDateString("en-NG", { day: "numeric", month: "short", year: "numeric" })}</strong>
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Specs */}
+                <div>
+                  <label className="block text-sm font-semibold text-ink mb-1">
+                    Additional Specifications{" "}
+                    <span className="text-xs font-normal text-[#A39289]">
+                      {selectedOrder.quote?.notes ? "(pre-filled from order — edit as needed)" : "(optional)"}
+                    </span>
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={specifications}
+                    onChange={(e) => setSpecifications(e.target.value)}
+                    placeholder="Colour, size, finishing details..."
+                    className="w-full rounded-xl border border-[#E8DED5] px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-leather/20 focus:border-leather resize-none"
+                  />
+                </div>
+
+                {assignError && (
+                  <p className="text-sm text-red-600 flex items-center gap-1.5">
+                    <AlertCircle className="h-4 w-4" />{assignError}
+                  </p>
+                )}
+
+                <div className="flex gap-3">
+                  <Button
+                    type="submit"
+                    variant="accent"
+                    className="flex-1"
+                    disabled={actionLoading || !selectedArtisan || !deadlineDays || deadlineDays < 1}
+                  >
+                    {actionLoading
+                      ? <span className="flex items-center justify-center gap-2"><Spinner size="sm" />Assigning...</span>
+                      : "Confirm Assignment"
+                    }
+                  </Button>
+                  <Button type="button" variant="outline" onClick={() => setAssignModal(false)}>
+                    Cancel
+                  </Button>
+                </div>
+              </form>
+            </div>
+          )}
+        </Modal>
+
+        {/* ── ORDER JOBS MODAL ── */}
+        <OrderJobsModal
+          jobs={viewJobs}
+          open={!!viewJobs}
+          onClose={() => setViewJobs(null)}
+          onActionDone={(msg) => { setViewJobs(null); loadAll(); showToast("✓ " + msg); }}
+        />
+
+      </PageWrapper>
+    </AdminRoute>
+>>>>>>> Stashed changes
   );
 }
