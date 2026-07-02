@@ -23,6 +23,7 @@ export async function getBrands(tabStatus = "All") {
       whatsapp:         user.brand?.whatsappNumber || "N/A",
       registrationDate: user.createdAt ? new Date(user.createdAt).toLocaleDateString() : "N/A",
       kycStatus:        user.kyc?.status || "NOT_STARTED",
+      emailVerified:    !!user.emailVerified,
     }));
   } catch (error) {
     console.error("Error fetching brands:", error);

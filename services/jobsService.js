@@ -65,6 +65,7 @@ export async function getAllJobsFromOrders() {
         brandName:            order.brand?.businessName || "—",
         productType:          job.productType || order.quote?.productType?.[0] || "—",
         quantity:             job.quantity || order.quote?.quantity || "—",
+        brandProvides:        order.quote?.brandProvides || [],
         artisanName:          job.artisan?.fullName || "—",
         artisanEmail:         job.artisan?.user?.email || "—",
         artisanSpecialty:     specs,

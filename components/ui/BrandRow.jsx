@@ -72,6 +72,18 @@ export default function BrandRow({ brand, onAction }) {
         </span>
       </td>
 
+      <td className="px-6 py-5">
+        <span
+          className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border ${
+            brand.emailVerified
+              ? "bg-green-50 text-green-700 border-green-100"
+              : "bg-gray-50 text-gray-500 border-gray-200"
+          }`}
+        >
+          {brand.emailVerified ? "Verified" : "Unverified"}
+        </span>
+      </td>
+
       <td className="px-6 py-5 text-sm text-[#A39289]">
         {moment(brand.createdAt).format("MMM DD, YYYY")}
       </td>
@@ -80,9 +92,14 @@ export default function BrandRow({ brand, onAction }) {
         <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
           {brand.status !== "APPROVED" && (
             <button
-              onClick={(e) => handleButtonClick(e, "approve")}
-              className="p-2 bg-green-50 text-green-600 rounded-lg hover:bg-green-600 hover:text-white transition-all shadow-sm"
-              title="Approve / Activate"
+              onClick={(e) => brand.emailVerified && handleButtonClick(e, "approve")}
+              disabled={!brand.emailVerified}
+              className={`p-2 rounded-lg transition-all shadow-sm ${
+                brand.emailVerified
+                  ? "bg-green-50 text-green-600 hover:bg-green-600 hover:text-white"
+                  : "bg-gray-50 text-gray-300 cursor-not-allowed"
+              }`}
+              title={brand.emailVerified ? "Approve / Activate" : "Email not verified — cannot approve"}
             >
               <Check className="w-4 h-4" />
             </button>

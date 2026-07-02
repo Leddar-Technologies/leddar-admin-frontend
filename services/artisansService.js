@@ -58,6 +58,7 @@ export async function getArtisans(tabStatus = "All") {
         addressVerifiedAt: user.kyc?.addressVerifiedAt || null,
         ninVerifiedAt:  user.kyc?.ninVerifiedAt || null,
         portfolio: user.artisan?.portfolio || [],
+        emailVerified:  !!user.emailVerified,
       }));
   } catch (error) {
     console.error("Error fetching artisans:", error);

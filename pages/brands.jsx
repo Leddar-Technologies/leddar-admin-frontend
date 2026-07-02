@@ -5,6 +5,7 @@ import PageWrapper from "@/components/layout/PageWrapper";
 import Table from "@/components/ui/Table";
 import BrandRow from "@/components/ui/BrandRow";
 import Spinner from "@/components/ui/Spinner";
+import FilterDropdown from "@/components/ui/FilterDropdown";
 import AdminRoute from "../components/auth/AdminRoute";
 import { getBrands, approveUser, rejectUser } from "@/services/brandsService";
 import { Users, ShieldCheck, Clock, UserX, Search, FileSearch } from "lucide-react";
@@ -22,7 +23,9 @@ export default function BrandsPage() {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
+  const [actionError, setActionError] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+  const [emailFilter, setEmailFilter] = useState("All");
 
   const loadBrands = async () => {
     try {
@@ -65,6 +68,12 @@ export default function BrandsPage() {
         (item) => item.kycStatus === "PENDING" || !item.kycStatus || item.kycStatus === "NOT_STARTED",
       );
 
+    // Email verification filtering (independent of status tab)
+    if (emailFilter === "Verified")
+      result = result.filter((item) => item.emailVerified);
+    if (emailFilter === "Unverified")
+      result = result.filter((item) => !item.emailVerified);
+
     // Search filter
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
@@ -76,11 +85,12 @@ export default function BrandsPage() {
     }
 
     return result;
-  }, [rows, activeTab, searchQuery]);
+  }, [rows, activeTab, searchQuery, emailFilter]);
 
   const handleAction = async (id, actionType) => {
     try {
       setActionLoading(true);
+      setActionError("");
       const type = actionType.toLowerCase();
       if (type === "approve" || type === "active") await approveUser(id);
       else if (type === "reject" || type === "suspended" || type === "rejected")
@@ -88,6 +98,7 @@ export default function BrandsPage() {
       await loadBrands();
     } catch (err) {
       console.error("Action failed:", err);
+      setActionError(err.response?.data?.error || "Action failed. Please try again.");
     } finally {
       setActionLoading(false);
     }
@@ -99,6 +110,12 @@ export default function BrandsPage() {
       title="Brand Management"
       subtitle="Review and manage brand partnerships"
     >
+      {actionError && (
+        <div className="mb-4 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
+          {actionError}
+        </div>
+      )}
+
       <div className="mb-8 flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex flex-wrap items-center gap-2 rounded-2xl bg-white p-1.5 shadow-sm border border-[#E8DED5]">
           {tabs.map((tab) => {
@@ -123,15 +140,28 @@ export default function BrandsPage() {
           })}
         </div>
 
-        <div className="relative group max-w-sm w-full">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-[#A39289] group-focus-within:text-leather transition-colors" />
-          <input
-            type="text"
-            placeholder="Search brands..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-11 pr-4 py-2.5 bg-white border border-[#E8DED5] rounded-xl text-sm outline-none focus:ring-2 focus:ring-leather/10 focus:border-leather transition-all"
+        <div className="flex items-center gap-3">
+          <FilterDropdown
+            className="w-48"
+            value={emailFilter}
+            onChange={setEmailFilter}
+            options={[
+              { value: "All", label: "All Emails" },
+              { value: "Verified", label: "Email Verified" },
+              { value: "Unverified", label: "Email Unverified" },
+            ]}
           />
+
+          <div className="relative group max-w-sm w-full">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-[#A39289] group-focus-within:text-leather transition-colors" />
+            <input
+              type="text"
+              placeholder="Search brands..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-11 pr-4 py-2.5 bg-white border border-[#E8DED5] rounded-xl text-sm outline-none focus:ring-2 focus:ring-leather/10 focus:border-leather transition-all"
+            />
+          </div>
         </div>
       </div>
 
@@ -148,6 +178,7 @@ export default function BrandsPage() {
                 "Product Category",
                 "Contact",
                 "Status",
+                "Email Verified",
                 "Joined Date",
                 "Actions",
               ]}
@@ -162,7 +193,7 @@ export default function BrandsPage() {
                 ))
               ) : (
                 <tr>
-                  <td colSpan="6" className="py-32 text-center">
+                  <td colSpan="7" className="py-32 text-center">
                     <div className="flex flex-col items-center gap-3">
                       <div className="w-16 h-16 bg-atmosphere rounded-full flex items-center justify-center mb-2">
                         <Users className="w-8 h-8 text-[#D7CBC1]" />

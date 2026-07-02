@@ -5,6 +5,7 @@ import PageWrapper from "@/components/layout/PageWrapper";
 import Table from "@/components/ui/Table";
 import ArtisanRow from "@/components/admin/ArtisanRow";
 import Spinner from "@/components/ui/Spinner";
+import FilterDropdown from "@/components/ui/FilterDropdown";
 import {
   getArtisans,
   approveArtisan,
@@ -27,7 +28,9 @@ export default function ArtisansPage() {
   const [rows, setRows]                     = useState([]);
   const [loading, setLoading]               = useState(true);
   const [actionLoading, setActionLoading]   = useState(false);
+  const [actionError, setActionError]       = useState("");
   const [searchQuery, setSearchQuery]       = useState("");
+  const [emailFilter, setEmailFilter]       = useState("All");
 
   const loadArtisans = async () => {
     try {
@@ -63,6 +66,11 @@ export default function ArtisansPage() {
     if (activeTab === "Suspended")
       result = result.filter((r) => r.status === "REJECTED");
 
+    if (emailFilter === "Verified")
+      result = result.filter((r) => r.emailVerified);
+    if (emailFilter === "Unverified")
+      result = result.filter((r) => !r.emailVerified);
+
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
       result = result.filter(
@@ -76,11 +84,12 @@ export default function ArtisansPage() {
     }
 
     return result;
-  }, [rows, activeTab, searchQuery]);
+  }, [rows, activeTab, searchQuery, emailFilter]);
 
   const handleAction = async (id, actionType) => {
     try {
       setActionLoading(true);
+      setActionError("");
       const type = actionType.toLowerCase();
       if (type === "approve") {
         await approveArtisan(id);
@@ -92,7 +101,9 @@ export default function ArtisansPage() {
       await loadArtisans();
     } catch (err) {
       console.error("Action failed:", err);
-      toast.error("Operation failed. Please try again.");
+      const message = err.response?.data?.error || "Operation failed. Please try again.";
+      setActionError(message);
+      toast.error(message);
     } finally {
       setActionLoading(false);
     }
@@ -103,6 +114,12 @@ export default function ArtisansPage() {
       title="Artisan Management"
       subtitle="Verify credentials and manage specialized artisan profiles"
     >
+      {actionError && (
+        <div className="mb-4 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
+          {actionError}
+        </div>
+      )}
+
       {/* Tabs + Search */}
       <div className="mb-8 flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex flex-wrap items-center gap-2 rounded-2xl bg-white p-1.5 shadow-sm border border-[#E8DED5]">
@@ -126,15 +143,28 @@ export default function ArtisansPage() {
           })}
         </div>
 
-        <div className="relative group max-w-sm w-full">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-[#A39289] group-focus-within:text-leather transition-colors" />
-          <input
-            type="text"
-            placeholder="Search by name or specialty..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-11 pr-4 py-2.5 bg-white border border-[#E8DED5] rounded-xl text-sm outline-none focus:ring-2 focus:ring-leather/10 focus:border-leather transition-all"
+        <div className="flex items-center gap-3">
+          <FilterDropdown
+            className="w-48"
+            value={emailFilter}
+            onChange={setEmailFilter}
+            options={[
+              { value: "All", label: "All Emails" },
+              { value: "Verified", label: "Email Verified" },
+              { value: "Unverified", label: "Email Unverified" },
+            ]}
           />
+
+          <div className="relative group max-w-sm w-full">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-[#A39289] group-focus-within:text-leather transition-colors" />
+            <input
+              type="text"
+              placeholder="Search by name or specialty..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-11 pr-4 py-2.5 bg-white border border-[#E8DED5] rounded-xl text-sm outline-none focus:ring-2 focus:ring-leather/10 focus:border-leather transition-all"
+            />
+          </div>
         </div>
       </div>
 
@@ -152,6 +182,7 @@ export default function ArtisansPage() {
                 "Specialty",
                 "Contact",
                 "Status",
+                "Email Verified",
                 "Joined Date",
                 "Actions",
               ]}
@@ -166,7 +197,7 @@ export default function ArtisansPage() {
                 ))
               ) : (
                 <tr>
-                  <td colSpan="6" className="py-32 text-center">
+                  <td colSpan="7" className="py-32 text-center">
                     <div className="flex flex-col items-center gap-3">
                       <div className="w-16 h-16 bg-atmosphere rounded-full flex items-center justify-center mb-2">
                         <Users className="w-8 h-8 text-[#D7CBC1]" />

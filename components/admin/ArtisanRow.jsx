@@ -111,6 +111,19 @@ export default function ArtisanRow({ artisan, onAction }) {
         </span>
       </td>
 
+      {/* Email Verified */}
+      <td className="px-6 py-5">
+        <span
+          className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border ${
+            artisan.emailVerified
+              ? "bg-green-50 text-green-700 border-green-100"
+              : "bg-gray-50 text-gray-500 border-gray-200"
+          }`}
+        >
+          {artisan.emailVerified ? "Verified" : "Unverified"}
+        </span>
+      </td>
+
       {/* Joined Date */}
       <td className="px-6 py-5 text-sm text-[#A39289]">
         {artisan.registrationDate
@@ -123,9 +136,14 @@ export default function ArtisanRow({ artisan, onAction }) {
         <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
           {artisan.status !== "APPROVED" && (
             <button
-              onClick={(e) => handleClick(e, "approve")}
-              className="p-2 bg-green-50 text-green-600 rounded-lg hover:bg-green-600 hover:text-white transition-all shadow-sm"
-              title="Approve"
+              onClick={(e) => artisan.emailVerified && handleClick(e, "approve")}
+              disabled={!artisan.emailVerified}
+              className={`p-2 rounded-lg transition-all shadow-sm ${
+                artisan.emailVerified
+                  ? "bg-green-50 text-green-600 hover:bg-green-600 hover:text-white"
+                  : "bg-gray-50 text-gray-300 cursor-not-allowed"
+              }`}
+              title={artisan.emailVerified ? "Approve" : "Email not verified — cannot approve"}
             >
               <Check className="w-4 h-4" />
             </button>

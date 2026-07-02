@@ -79,6 +79,28 @@ const tabs = [
   { id: "review",  label: "Sample Ready",      icon: Video },
 ];
 
+// ─── Branding badges (brand metal tags, printed boxes, etc.) ───────────────
+
+const BRANDING_NONE = "I don't need any of these";
+
+function BrandingBadges({ items, className = "" }) {
+  if (!items || items.length === 0) return null;
+  const real = items.filter((i) => i !== BRANDING_NONE);
+  if (real.length === 0) return null;
+  return (
+    <div className={`flex flex-wrap gap-1 ${className}`}>
+      {real.map((item) => (
+        <span
+          key={item}
+          className="inline-flex items-center rounded-full border border-[#F0D882] bg-[#FFF8EA] px-2 py-0.5 text-[10px] font-semibold text-[#8A6A00]"
+        >
+          {item}
+        </span>
+      ))}
+    </div>
+  );
+}
+
 // ─── Pipeline Stepper ──────────────────────────────────────────────────────
 
 function PipelineStepper({ type, currentStatus }) {
@@ -379,6 +401,14 @@ function JobPanel({ job, onActionDone }) {
         </div>
       )}
 
+      {/* Branding requested by brand */}
+      {job.brandProvides?.filter((i) => i !== BRANDING_NONE).length > 0 && (
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-[#A39289] mb-1">Branding Requested</p>
+          <BrandingBadges items={job.brandProvides} />
+        </div>
+      )}
+
       {/* Specs */}
       {job.specifications && (
         <div>
@@ -465,6 +495,12 @@ function OrderJobsModal({ jobs, open, onClose, onActionDone }) {
             <p className="text-xs text-[#A39289] uppercase mb-0.5">Quantity</p>
             <p className="text-ink">{first.quantity}</p>
           </div>
+          {first.brandProvides?.filter((i) => i !== BRANDING_NONE).length > 0 && (
+            <div className="col-span-2">
+              <p className="text-xs text-[#A39289] uppercase mb-1">Branding Requested</p>
+              <BrandingBadges items={first.brandProvides} />
+            </div>
+          )}
         </div>
 
         {/* Job selector tabs (only shown when 2 jobs) */}
@@ -796,6 +832,7 @@ export default function JobsPage() {
                             </td>
                             <td className="px-4 py-3 text-[#5A4A44]">
                               {order.quote?.productType?.[0] || "—"}
+                              <BrandingBadges items={order.quote?.brandProvides} className="mt-1" />
                             </td>
                             <td className="px-4 py-3 text-[#5A4A44]">
                               {order.quote?.quantity || "—"}
@@ -924,7 +961,10 @@ export default function JobsPage() {
                                   </Badge>
                                 </td>
                                 <td className="px-4 py-3 font-medium text-ink">{displayJob.brandName}</td>
-                                <td className="px-4 py-3 text-[#5A4A44] text-xs">{displayJob.productType}</td>
+                                <td className="px-4 py-3 text-[#5A4A44] text-xs">
+                                  {displayJob.productType}
+                                  <BrandingBadges items={displayJob.brandProvides} className="mt-1" />
+                                </td>
                                 <td className="px-4 py-3">
                                   <p className="text-sm font-medium text-ink">{displayJob.artisanName}</p>
                                   <p className="text-xs text-[#A39289] truncate max-w-[120px]">{displayJob.artisanEmail}</p>
@@ -1104,6 +1144,12 @@ export default function JobsPage() {
                   <div className="mt-3 pt-3 border-t border-[#E8DED5]">
                     <p className="text-[10px] text-[#A39289] uppercase tracking-wide mb-0.5">Quote Reference</p>
                     <p className="font-mono text-xs font-bold text-leather">[{selectedOrder.quote.ref}]</p>
+                  </div>
+                )}
+                {selectedOrder.quote?.brandProvides?.filter((i) => i !== BRANDING_NONE).length > 0 && (
+                  <div className="mt-3 pt-3 border-t border-[#E8DED5]">
+                    <p className="text-[10px] text-[#A39289] uppercase tracking-wide mb-1">Branding Requested</p>
+                    <BrandingBadges items={selectedOrder.quote.brandProvides} />
                   </div>
                 )}
               </div>
