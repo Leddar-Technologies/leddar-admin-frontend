@@ -28,6 +28,12 @@ import {
   AlertCircle,
 } from "lucide-react";
 
+const PRODUCES_FOR_LABEL = {
+  MALE:   "Male Wear",
+  FEMALE: "Female Wear",
+  UNISEX: "Unisex / Both",
+};
+
 export default function ArtisanProfilePage() {
   const router = useRouter();
   const { id } = router.query;
@@ -142,6 +148,11 @@ export default function ArtisanProfilePage() {
               <Badge variant={statusVariant}>
                 {artisan.status || "PENDING"}
               </Badge>
+              {artisan.producesFor && (
+                <Badge variant="outline">
+                  {PRODUCES_FOR_LABEL[artisan.producesFor] || artisan.producesFor}
+                </Badge>
+              )}
               <Badge variant="outline">ID: {artisan.id?.slice(0, 8).toUpperCase()}</Badge>
             </div>
           </div>
@@ -243,6 +254,102 @@ export default function ArtisanProfilePage() {
           </div>
         ))}
       </div>
+
+      {/* Physical Address Verification (QoreID) */}
+      {(() => {
+        const addr = artisan.address;
+        if (!addr) return null;
+
+        const statusCfg = {
+          VERIFIED:     { label: "Verified ✓",    cls: "border-emerald-200 bg-emerald-50 text-emerald-700" },
+          NOT_VERIFIED: { label: "Not Verified",   cls: "border-red-200 bg-red-50 text-red-700" },
+          FAILED:       { label: "Submit Failed",  cls: "border-orange-200 bg-orange-50 text-orange-700" },
+          IN_PROGRESS:  { label: "QoreID Pending", cls: "border-blue-200 bg-blue-50 text-blue-700" },
+          PENDING:      { label: "Saved · Awaiting Job", cls: "border-amber-200 bg-amber-50 text-amber-700" },
+        }[addr.status] || { label: "Not Entered", cls: "border-[#E8DED5] bg-atmosphere text-[#A39289]" };
+
+        return (
+          <div className="mt-8 rounded-2xl border border-[#E8DED5] bg-white p-6 shadow-sm">
+            <div className="flex items-center justify-between flex-wrap gap-2 mb-4">
+              <div className="flex items-center gap-2">
+                <MapPin className="w-4 h-4 text-leather" />
+                <h4 className="text-sm font-bold uppercase tracking-widest text-[#A39289]">
+                  Physical Address Verification (QoreID)
+                </h4>
+              </div>
+              <span className={`rounded-full border px-2.5 py-1 text-xs font-bold ${statusCfg.cls}`}>
+                {statusCfg.label}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+              <div>
+                <p className="text-[11px] uppercase tracking-wider font-bold text-[#A39289]">Street</p>
+                <p className="text-ink font-medium mt-0.5">{addr.workAddress || "—"}</p>
+              </div>
+              <div>
+                <p className="text-[11px] uppercase tracking-wider font-bold text-[#A39289]">City / State</p>
+                <p className="text-ink font-medium mt-0.5">
+                  {addr.city && addr.state ? `${addr.city}, ${addr.state}` : addr.city || addr.state || "—"}
+                </p>
+              </div>
+              <div>
+                <p className="text-[11px] uppercase tracking-wider font-bold text-[#A39289]">LGA</p>
+                <p className="text-ink font-medium mt-0.5">{addr.lgaName || "—"}</p>
+              </div>
+              <div>
+                <p className="text-[11px] uppercase tracking-wider font-bold text-[#A39289]">Landmark</p>
+                <p className="text-ink font-medium mt-0.5">{addr.landmark || "—"}</p>
+              </div>
+            </div>
+
+            {(addr.qoreidRequestId || addr.submittedAt) && (
+              <div className="mt-5 pt-4 border-t border-[#E8DED5] grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                <div>
+                  <p className="text-[11px] uppercase tracking-wider font-bold text-[#A39289]">QoreID Ref</p>
+                  <p className="text-ink font-mono font-medium mt-0.5">
+                    {addr.qoreidRequestId ? `#${addr.qoreidRequestId}` : "—"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[11px] uppercase tracking-wider font-bold text-[#A39289]">Submitted</p>
+                  <p className="text-ink font-medium mt-0.5">{addr.submittedAt ? formatDate(addr.submittedAt) : "—"}</p>
+                </div>
+                <div>
+                  <p className="text-[11px] uppercase tracking-wider font-bold text-[#A39289]">Verified</p>
+                  <p className="text-ink font-medium mt-0.5">{addr.verifiedAt ? formatDate(addr.verifiedAt) : "—"}</p>
+                </div>
+              </div>
+            )}
+
+            {(addr.qoreidRequest || addr.qoreidResponse) && (
+              <details className="mt-4 group">
+                <summary className="cursor-pointer text-xs font-semibold text-leather select-none">
+                  View raw QoreID data (for support tickets)
+                </summary>
+                <div className="mt-3 space-y-3">
+                  {addr.qoreidRequest && (
+                    <div>
+                      <p className="text-[11px] uppercase tracking-wider font-bold text-[#A39289] mb-1">Request sent</p>
+                      <pre className="rounded-xl bg-ink/95 text-[#d4d4d4] text-[11px] p-3 overflow-x-auto">
+                        {JSON.stringify(addr.qoreidRequest, null, 2)}
+                      </pre>
+                    </div>
+                  )}
+                  {addr.qoreidResponse && (
+                    <div>
+                      <p className="text-[11px] uppercase tracking-wider font-bold text-[#A39289] mb-1">Response received</p>
+                      <pre className="rounded-xl bg-ink/95 text-[#d4d4d4] text-[11px] p-3 overflow-x-auto">
+                        {JSON.stringify(addr.qoreidResponse, null, 2)}
+                      </pre>
+                    </div>
+                  )}
+                </div>
+              </details>
+            )}
+          </div>
+        );
+      })()}
 
       {/* Portfolio Section */}
       {artisan.portfolio?.length > 0 && (

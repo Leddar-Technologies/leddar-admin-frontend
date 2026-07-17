@@ -31,6 +31,7 @@ export default function ArtisansPage() {
   const [actionError, setActionError]       = useState("");
   const [searchQuery, setSearchQuery]       = useState("");
   const [emailFilter, setEmailFilter]       = useState("All");
+  const [producesForFilter, setProducesForFilter] = useState("All");
 
   const loadArtisans = async () => {
     try {
@@ -71,6 +72,9 @@ export default function ArtisansPage() {
     if (emailFilter === "Unverified")
       result = result.filter((r) => !r.emailVerified);
 
+    if (producesForFilter !== "All")
+      result = result.filter((r) => r.producesFor === producesForFilter);
+
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
       result = result.filter(
@@ -84,7 +88,7 @@ export default function ArtisansPage() {
     }
 
     return result;
-  }, [rows, activeTab, searchQuery, emailFilter]);
+  }, [rows, activeTab, searchQuery, emailFilter, producesForFilter]);
 
   const handleAction = async (id, actionType) => {
     try {
@@ -152,6 +156,18 @@ export default function ArtisansPage() {
               { value: "All", label: "All Emails" },
               { value: "Verified", label: "Email Verified" },
               { value: "Unverified", label: "Email Unverified" },
+            ]}
+          />
+
+          <FilterDropdown
+            className="w-48"
+            value={producesForFilter}
+            onChange={setProducesForFilter}
+            options={[
+              { value: "All", label: "Produces For: All" },
+              { value: "MALE", label: "Male Wear" },
+              { value: "FEMALE", label: "Female Wear" },
+              { value: "UNISEX", label: "Unisex / Both" },
             ]}
           />
 

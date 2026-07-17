@@ -11,6 +11,7 @@ export async function getArtisanById(id) {
       email:            data.email || "N/A",
       whatsapp:         data.whatsapp || "N/A",
       specialty:        Array.isArray(data.specialty) ? data.specialty : data.specialty ? [data.specialty] : [],
+      producesFor:      data.producesFor || null,
       city:             data.city || "",
       state:            data.state || "",
       status:           data.status || "PENDING",
@@ -20,6 +21,7 @@ export async function getArtisanById(id) {
       jobs:             data.jobs || [],
       payments:         data.payments || [],
       bankDetail:       data.bankDetail || null,
+      address:          data.address || null,
     };
   } catch (error) {
     console.error(`Error fetching artisan profile ${id}:`, error);
@@ -45,6 +47,7 @@ export async function getArtisans(tabStatus = "All") {
         role:             user.role,
         fullName:         user.artisan?.fullName || "Unknown",
         specialty:        Array.isArray(user.artisan?.specialty) ? user.artisan.specialty : user.artisan?.specialty ? [user.artisan.specialty] : [],
+        producesFor:      user.artisan?.producesFor || null,
         whatsapp:         user.artisan?.whatsapp || "N/A",
         location:         user.artisan?.city
           ? `${user.artisan.city}${user.artisan.state ? ", " + user.artisan.state : ""}`

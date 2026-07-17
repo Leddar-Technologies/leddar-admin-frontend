@@ -33,6 +33,9 @@ export async function getPayments() {
         jobStatus:            item.jobs?.[0]?.status || null,
         fullAmount:           item.totalAmount || 0,
         escrowBalance:        item.escrowBalance || 0,
+        // Stable pre-VAT split base (server-computed) — escrowBalance decrements as stages
+        // pay out and can no longer double as the base once Stage 1 has been released.
+        productionBase:       item.productionBase ?? item.escrowBalance ?? 0,
         type:                 item.type,
         status:               item.status,
         stage1Released:       item.payments?.some((p) => p.stage === "MATERIAL" && p.status === "RELEASED"),
@@ -59,11 +62,11 @@ export async function markInvoicePaid(invoiceId) {
   return res.data;
 }
 
-export async function releaseStage(orderId, stage) {
+export async function releaseStage(orderId, stage, otp) {
   const endpoint = stage === 1
     ? `/admin/orders/${orderId}/release-stage1`
     : `/admin/orders/${orderId}/release-stage2`;
-  const res = await apiClient.post(endpoint, {});
+  const res = await apiClient.post(endpoint, otp ? { otp } : {});
   return res.data;
 }
 
@@ -150,8 +153,8 @@ export async function getAdminEarnings() {
   }
 }
 
-export async function createAdminPayout({ amount, note }) {
-  const res = await apiClient.post("/admin/payout", { amount, note });
+export async function createAdminPayout({ amount, note, otp }) {
+  const res = await apiClient.post("/admin/payout", otp ? { amount, note, otp } : { amount, note });
   return res.data;
 }
 
@@ -167,5 +170,12 @@ export async function getAdminPayouts() {
 
 export async function finalizeAdminPayout({ payoutId, otp }) {
   const res = await apiClient.post("/admin/payout/finalize", { payoutId, otp });
+  return res.data;
+}
+
+// ── Artisan payment OTP finalization (Stage 1 / Stage 2 / Sample) ───────────
+
+export async function finalizeArtisanPayment({ paymentId, otp }) {
+  const res = await apiClient.post(`/admin/payments/${paymentId}/finalize-otp`, { otp });
   return res.data;
 }

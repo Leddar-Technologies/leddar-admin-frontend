@@ -31,7 +31,10 @@ export async function getCommissionSettings() {
   }
 }
 
-export async function updateCommissionSettings(payload) {
+// Requires OTP confirmation — call once without `otp` to trigger the email,
+// then again with the code the admin enters. Returns { requiresOtp: true } on
+// the first call, or { requiresOtp: false, data } once confirmed.
+export async function updateCommissionSettings(payload, otp) {
   const body = {
     adminRate:                 payload.adminRate         / 100,
     artisanStage1Rate:         payload.artisanStage1Rate / 100,
@@ -40,9 +43,13 @@ export async function updateCommissionSettings(payload) {
     // Hours — no conversion needed
     sampleAcceptanceHours:     Number(payload.sampleAcceptanceHours),
     productionAcceptanceHours: Number(payload.productionAcceptanceHours),
+    ...(otp ? { otp } : {}),
   };
   const res = await apiClient.patch("/admin/commission-settings", body);
-  return normalizeSettings(res.data.data);
+  if (res.data.requiresOtp) {
+    return { requiresOtp: true, message: res.data.message };
+  }
+  return { requiresOtp: false, message: res.data.message, data: normalizeSettings(res.data.data) };
 }
 
 // ── Sample Pricing ─────────────────────────────────────────────────────────────
@@ -56,9 +63,15 @@ export async function getSamplePricingSettings() {
   }
 }
 
-export async function updateSamplePricingSettings(rows) {
-  const res = await apiClient.patch("/admin/sample-pricing", rows);
-  return res.data;
+// Requires OTP confirmation — call once without `otp` to trigger the email,
+// then again with the code the admin enters. Returns { requiresOtp: true } on
+// the first call, or { requiresOtp: false, data } once confirmed.
+export async function updateSamplePricingSettings(rows, otp) {
+  const res = await apiClient.patch("/admin/sample-pricing", { prices: rows, ...(otp ? { otp } : {}) });
+  if (res.data.requiresOtp) {
+    return { requiresOtp: true, message: res.data.message };
+  }
+  return { requiresOtp: false, message: res.data.message, data: res.data.data };
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────

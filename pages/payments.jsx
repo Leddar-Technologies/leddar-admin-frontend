@@ -5,8 +5,8 @@ import Badge from '@/components/ui/Badge';
 import Spinner from '@/components/ui/Spinner';
 import AdminRoute from '@/components/auth/AdminRoute';
 import { formatCurrency, formatDate } from '@/lib/utils';
-import { getCommissionSettings, calculateCommissionBreakdown } from '@/services/commissionService';
-import { getPayments, markInvoicePaid, releaseStage, getSamplePayments, generateInvoice, getVatSummary, getFIRSRemittances, createFIRSRemittance, getAdminEarnings, createAdminPayout, finalizeAdminPayout } from '@/services/paymentsService';
+import { getCommissionSettings } from '@/services/commissionService';
+import { getPayments, markInvoicePaid, releaseStage, getSamplePayments, generateInvoice, getVatSummary, getFIRSRemittances, createFIRSRemittance, getAdminEarnings, createAdminPayout } from '@/services/paymentsService';
 import { getAllJobsFromOrders, releaseSamplePayment } from '@/services/jobsService';
 import { FileText, Landmark, RefreshCw, CheckCircle2, Clock, Plus, ArrowDownToLine, AlertCircle, Loader2, Building2, TrendingUp } from 'lucide-react';
 
@@ -28,14 +28,20 @@ export default function PaymentsPage() {
   const [loading, setLoading]         = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [toast, setToast]             = useState({ msg: '', isError: false });
-  const [confirmModal, setConfirmModal] = useState({
+  const CONFIRM_MODAL_INITIAL = {
     open: false, orderId: null, stage: 1, amount: 0, artisan: '',
     orderRef: '', escrowBalance: 0, breakdown: null,
     bankDetail: null, hasBankDetails: false,
-  });
+    otpStep: false, paymentId: null, otp: '', otpError: '',
+  };
+  const [confirmModal, setConfirmModal] = useState(CONFIRM_MODAL_INITIAL);
   const [vatData, setVatData] = useState({ summary: {}, records: [] });
   const [pendingSampleJobs, setPendingSampleJobs] = useState([]);
-  const [sampleReleaseModal, setSampleReleaseModal] = useState({ open: false, jobId: null, artisan: '', orderRef: '', flatFee: 0, brandPaidTotal: 0, bankDetail: null, hasBankDetails: false });
+  const SAMPLE_RELEASE_MODAL_INITIAL = {
+    open: false, jobId: null, artisan: '', orderRef: '', flatFee: 0, brandPaidTotal: 0, bankDetail: null, hasBankDetails: false,
+    otpStep: false, paymentId: null, otp: '', otpError: '',
+  };
+  const [sampleReleaseModal, setSampleReleaseModal] = useState(SAMPLE_RELEASE_MODAL_INITIAL);
   const [sampleReleaseResult, setSampleReleaseResult] = useState(null);
   const [sampleAlreadyReleased, setSampleAlreadyReleased] = useState(false);
   const [firsRemittances, setFirsRemittances]   = useState([]);
@@ -98,6 +104,33 @@ export default function PaymentsPage() {
 
   useEffect(() => { loadData(); }, []);
 
+  // Build a settings-like object from the order's snapshotted rates (preferred) or live settings (fallback)
+  const snapshotSettingsFor = (payment) => ({
+    adminRate:         (payment.snapshotAdminRate   ?? settings?.adminRate         ?? 0.15) * 100,
+    artisanStage1Rate: (payment.snapshotStage1Rate  ?? settings?.artisanStage1Rate ?? 0.40) * 100,
+    artisanStage2Rate: (payment.snapshotStage2Rate  ?? settings?.artisanStage2Rate ?? 0.45) * 100,
+    sampleAdminRate:   (payment.snapshotSampleAdminRate ?? settings?.sampleAdminRate ?? 0.30) * 100,
+  });
+
+  // Every entry in `payments` (from /admin/payments/escrow) is a production-escrow order —
+  // either a true PRODUCTION order or a legacy PATH A order (type SAMPLE carrying production
+  // escrow). Commission splits must exclude VAT — VAT is a pass-through to FIRS, not revenue
+  // to split with the artisan/admin. `productionBase` is server-computed (see
+  // getStableProductionBase in escrow.controller.js) and stays stable even after
+  // escrowBalance has been partly decremented by a completed Stage 1/Stage 2 payout.
+  const productionBaseFor = (payment) => payment.productionBase || payment.fullAmount || 0;
+
+  // Money is always rounded down, never up or to nearest — matches the actual release
+  // amounts computed server-side in escrow.controller.js (releaseStage1/releaseStage2),
+  // so a preview here never overstates what a release will actually pay. Local to this
+  // page rather than the shared calculateCommissionBreakdown, which other pages (Quotes,
+  // Commission Settings) still use for their own previews.
+  const splitProduction = (base, rates) => ({
+    adminCommission: Math.floor(base * (rates.adminRate / 100)),
+    stage1Amount:    Math.floor(base * (rates.artisanStage1Rate / 100)),
+    stage2Amount:    Math.floor(base * (rates.artisanStage2Rate / 100)),
+  });
+
   // Real headline totals derived from actual data
   const totals = useMemo(() => {
     const totalEscrow     = payments.reduce((s, p) => s + (p.escrowBalance || 0), 0);
@@ -107,7 +140,7 @@ export default function PaymentsPage() {
     }, 0);
     const totalCommission = settings
       ? payments.reduce((s, p) => {
-          const b = calculateCommissionBreakdown(p.fullAmount, p.type, settings);
+          const b = splitProduction(productionBaseFor(p), snapshotSettingsFor(p));
           return s + (b?.adminCommission || 0);
         }, 0)
       : 0;
@@ -118,22 +151,9 @@ export default function PaymentsPage() {
     return { totalEscrow, totalCommission, totalReleased, sampleTotalReleased, sampleTotalCommission, sampleTotalVat };
   }, [payments, settings, samplePayments]);
 
-  // Build a settings-like object from the order's snapshotted rates (preferred) or live settings (fallback)
-  const snapshotSettingsFor = (payment) => ({
-    adminRate:         (payment.snapshotAdminRate   ?? settings?.adminRate         ?? 0.15) * 100,
-    artisanStage1Rate: (payment.snapshotStage1Rate  ?? settings?.artisanStage1Rate ?? 0.40) * 100,
-    artisanStage2Rate: (payment.snapshotStage2Rate  ?? settings?.artisanStage2Rate ?? 0.45) * 100,
-    sampleAdminRate:   (payment.snapshotSampleAdminRate ?? settings?.sampleAdminRate ?? 0.30) * 100,
-  });
-
   const openConfirm = (payment, stage) => {
-    const isLegacySampleWithEscrow = payment.type === 'SAMPLE' && payment.escrowBalance > 0;
     const effectiveSettings = snapshotSettingsFor(payment);
-    const b = calculateCommissionBreakdown(
-      isLegacySampleWithEscrow ? payment.escrowBalance : payment.escrowBalance || payment.fullAmount,
-      isLegacySampleWithEscrow ? 'PRODUCTION' : payment.type,
-      effectiveSettings
-    );
+    const b = splitProduction(productionBaseFor(payment), effectiveSettings);
     const amount = stage === 1 ? (b?.stage1Amount || 0) : (b?.stage2Amount || 0);
     setConfirmModal({
       open:           true,
@@ -152,12 +172,42 @@ export default function PaymentsPage() {
   const confirmRelease = async () => {
     setActionLoading(true);
     try {
-      await releaseStage(confirmModal.orderId, confirmModal.stage);
-      setConfirmModal({ open: false, orderId: null, stage: 1, amount: 0, artisan: '', orderRef: '', escrowBalance: 0, breakdown: null, bankDetail: null, hasBankDetails: false });
-      await loadData();
-      showToast(`Stage ${confirmModal.stage} payment released. WhatsApp notification sent to artisan.`);
+      const result = await releaseStage(confirmModal.orderId, confirmModal.stage);
+      if (result.requiresOtp) {
+        // App-level OTP sent to admin email — switch modal to OTP entry step
+        setConfirmModal((p) => ({ ...p, otpStep: true, paymentId: result.data?.id, otp: '', otpError: '' }));
+      } else {
+        setConfirmModal(CONFIRM_MODAL_INITIAL);
+        await loadData();
+        showToast(`Stage ${confirmModal.stage} payment submitted for transfer. You'll be notified once Paystack confirms it.`);
+      }
     } catch (err) {
       showToast(err.response?.data?.message || 'Release failed.', true);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleStageOtpConfirm = async () => {
+    if (!confirmModal.otp.trim()) {
+      setConfirmModal((p) => ({ ...p, otpError: 'Enter the OTP from your email.' }));
+      return;
+    }
+    setActionLoading(true);
+    setConfirmModal((p) => ({ ...p, otpError: '' }));
+    try {
+      const result = await releaseStage(confirmModal.orderId, confirmModal.stage, confirmModal.otp.trim());
+      if (result.requiresOtp) {
+        // Still awaiting confirmation (e.g. code expired) — let the admin request a fresh one
+        setConfirmModal((p) => ({ ...p, otp: '', otpError: result.message || 'Still awaiting confirmation — request a new OTP and try again.' }));
+        return;
+      }
+      const stage = confirmModal.stage;
+      setConfirmModal(CONFIRM_MODAL_INITIAL);
+      await loadData();
+      showToast(result.message || `Stage ${stage} payment confirmed.`);
+    } catch (err) {
+      setConfirmModal((p) => ({ ...p, otpError: err?.response?.data?.message || 'Incorrect OTP. Please try again.' }));
     } finally {
       setActionLoading(false);
     }
@@ -173,13 +223,19 @@ export default function PaymentsPage() {
     setSampleAlreadyReleased(false);
     try {
       const result = await releaseSamplePayment(sampleReleaseModal.jobId);
+      if (result.requiresOtp) {
+        // App-level OTP sent to admin email — switch modal to OTP entry step
+        setSampleReleaseModal((p) => ({ ...p, otpStep: true, paymentId: result.data?.payment?.id, otp: '', otpError: '' }));
+        return;
+      }
       const breakdown = result.data?.breakdown || null;
       setSampleReleaseResult(breakdown);
-      await loadData();
       // Use actual artisanAmount from the server response; fall back to live sampleAdminRate if somehow absent
       const releasedAmt = breakdown?.artisanAmount
         ?? Math.round((1 - (settings?.sampleAdminRate ?? 0.30)) * sampleReleaseModal.flatFee);
-      showToast(`✓ ₦${releasedAmt.toLocaleString('en-NG')} released to ${sampleReleaseModal.artisan} via Paystack`);
+      setSampleReleaseModal(SAMPLE_RELEASE_MODAL_INITIAL);
+      await loadData();
+      showToast(`✓ ₦${releasedAmt.toLocaleString('en-NG')} submitted for transfer to ${sampleReleaseModal.artisan} via Paystack`);
     } catch (err) {
       const msg = err.response?.data?.message || '';
       const isAlreadyReleased = msg.toLowerCase().includes('already released');
@@ -195,6 +251,32 @@ export default function PaymentsPage() {
     }
   };
 
+  const handleSampleOtpConfirm = async () => {
+    if (!sampleReleaseModal.otp.trim()) {
+      setSampleReleaseModal((p) => ({ ...p, otpError: 'Enter the OTP from your email.' }));
+      return;
+    }
+    setActionLoading(true);
+    setSampleReleaseModal((p) => ({ ...p, otpError: '' }));
+    try {
+      const result = await releaseSamplePayment(sampleReleaseModal.jobId, sampleReleaseModal.otp.trim());
+      if (result.requiresOtp) {
+        // Still awaiting confirmation (e.g. code expired) — let the admin request a fresh one
+        setSampleReleaseModal((p) => ({ ...p, otp: '', otpError: result.message || 'Still awaiting confirmation — request a new OTP and try again.' }));
+        return;
+      }
+      const breakdown = result.data?.breakdown || null;
+      setSampleReleaseResult(breakdown);
+      setSampleReleaseModal(SAMPLE_RELEASE_MODAL_INITIAL);
+      await loadData();
+      showToast(result.message || 'Sample payment confirmed.');
+    } catch (err) {
+      setSampleReleaseModal((p) => ({ ...p, otpError: err?.response?.data?.message || 'Incorrect OTP. Please try again.' }));
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   const handleWithdraw = async () => {
     const amt = Number(withdrawModal.amount);
     if (!amt || amt <= 0) { setWithdrawError('Enter a valid amount.'); return; }
@@ -202,7 +284,7 @@ export default function PaymentsPage() {
     try {
       const result = await createAdminPayout({ amount: amt, note: withdrawModal.note });
       if (result.requiresOtp) {
-        // Paystack needs OTP — switch modal to OTP entry step
+        // App-level OTP sent to admin email — switch modal to OTP entry step
         setWithdrawModal((prev) => ({ ...prev, otpStep: true, payoutId: result.data?.payoutId, otp: '' }));
         setWithdrawError('');
       } else if (result.success) {
@@ -224,10 +306,16 @@ export default function PaymentsPage() {
   };
 
   const handleOtpConfirm = async () => {
-    if (!withdrawModal.otp.trim()) { setWithdrawError('Enter the OTP from your email/phone.'); return; }
+    if (!withdrawModal.otp.trim()) { setWithdrawError('Enter the OTP from your email.'); return; }
     setWithdrawLoading(true); setWithdrawError(''); setWithdrawSuccess('');
     try {
-      const result = await finalizeAdminPayout({ payoutId: withdrawModal.payoutId, otp: withdrawModal.otp.trim() });
+      const result = await createAdminPayout({ amount: Number(withdrawModal.amount), note: withdrawModal.note, otp: withdrawModal.otp.trim() });
+      if (result.requiresOtp) {
+        // Still awaiting confirmation (e.g. code expired) — let the admin request a fresh one
+        setWithdrawModal((prev) => ({ ...prev, otp: '' }));
+        setWithdrawError(result.message || 'Still awaiting confirmation — request a new OTP and try again.');
+        return;
+      }
       if (result.success) {
         setWithdrawSuccess(result.message || 'Transfer confirmed.');
         const earnings = await getAdminEarnings();
@@ -386,17 +474,14 @@ export default function PaymentsPage() {
                     </thead>
                     <tbody className="divide-y divide-[#F4EFEA]">
                       {productionPayments.map((payment) => {
-                        const breakdown   = calculateCommissionBreakdown(payment.escrowBalance || payment.fullAmount, 'PRODUCTION', snapshotSettingsFor(payment));
-                        // Legacy SAMPLE orders (PATH A): fullAmount = sample flat fee, escrowBalance = production net.
-                        // Brand paid for production = escrowBalance × 1.075 (net + VAT they paid on top).
-                        // True PRODUCTION orders: fullAmount already includes VAT.
-                        const isLegacy    = payment.type === 'SAMPLE' && (payment.escrowBalance || 0) > payment.fullAmount;
-                        const brandPaid   = isLegacy
-                          ? Math.round((payment.escrowBalance || 0) * 1.075)
-                          : payment.fullAmount;
-                        const vatAmount   = isLegacy
-                          ? Math.round((payment.escrowBalance || 0) * 0.075)
-                          : brandPaid - (payment.escrowBalance || 0);
+                        // Brand Paid / VAT are historical facts about what the brand was charged —
+                        // they must stay fixed regardless of how much of that money has since been
+                        // released to the artisan. Derive both from productionBase (stable, doesn't
+                        // decrement) rather than escrowBalance (which now draws down on release).
+                        const productionBase = productionBaseFor(payment);
+                        const breakdown   = splitProduction(productionBase, snapshotSettingsFor(payment));
+                        const vatAmount   = Math.floor(productionBase * 0.075);
+                        const brandPaid   = productionBase + vatAmount;
                         const adminComm   = breakdown?.adminCommission || 0;
                         const canStage1   = !payment.stage1Released && payment.escrowBalance > 0;
                         const canStage2   = !payment.stage2Released && payment.stage1Released;
@@ -618,7 +703,7 @@ export default function PaymentsPage() {
                         </h3>
                         <p className="text-xs text-[#A39289]">
                           {withdrawModal.otpStep
-                            ? 'Paystack sent a one-time code to your registered email/phone'
+                            ? 'We sent a one-time code to your email'
                             : 'Transfer your earnings to your bank account'}
                         </p>
                       </div>
@@ -632,7 +717,7 @@ export default function PaymentsPage() {
                         <div className="flex items-start gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3">
                           <AlertCircle className="h-4 w-4 mt-0.5 shrink-0 text-blue-600" />
                           <p className="text-sm text-blue-800">
-                            Check your Paystack-registered <strong>email or phone</strong> for an OTP and enter it below to authorise the transfer.
+                            Check your <strong>email</strong> for an OTP and enter it below to authorise the transfer.
                           </p>
                         </div>
 
@@ -813,27 +898,6 @@ export default function PaymentsPage() {
                     Use the button below to log each real-world remittance to FIRS — this app does not
                     make the payment; it just keeps the record.
                   </span>
-                </div>
-
-                {/* VAT summary + action */}
-                <div className="grid gap-4 sm:grid-cols-3">
-                  <div className="rounded-2xl bg-blue-900 p-5 text-white shadow-sm">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-blue-200">Total VAT Collected</p>
-                    <p className="mt-2 text-2xl font-extrabold">{formatCurrency(totalVatCollected)}</p>
-                    <p className="mt-1 text-[11px] text-blue-300">From paid invoices</p>
-                  </div>
-                  <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5 shadow-sm">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Total Remitted to FIRS</p>
-                    <p className="mt-2 text-2xl font-extrabold text-emerald-800">{formatCurrency(totalVatRemitted)}</p>
-                    <p className="mt-1 text-[11px] text-emerald-500">{firsRemittances.length} remittance{firsRemittances.length !== 1 ? 's' : ''} logged</p>
-                  </div>
-                  <div className={`rounded-2xl border p-5 shadow-sm ${outstanding > 0 ? 'border-amber-200 bg-amber-50' : 'border-emerald-200 bg-emerald-50'}`}>
-                    <p className={`text-xs font-semibold uppercase tracking-wide ${outstanding > 0 ? 'text-amber-700' : 'text-emerald-700'}`}>Outstanding</p>
-                    <p className={`mt-2 text-2xl font-extrabold ${outstanding > 0 ? 'text-amber-800' : 'text-emerald-800'}`}>{formatCurrency(outstanding)}</p>
-                    <p className={`mt-1 text-[11px] ${outstanding > 0 ? 'text-amber-500' : 'text-emerald-500'}`}>
-                      {outstanding > 0 ? 'Pending remittance' : 'Fully remitted ✓'}
-                    </p>
-                  </div>
                 </div>
 
                 {/* Mark remitted button */}
@@ -1075,7 +1139,7 @@ export default function PaymentsPage() {
             <Modal
               title={`Release Sample Payment (${Math.round(artisanRate * 100)}%)`}
               open={sampleReleaseModal.open}
-              onClose={() => { setSampleReleaseModal({ open: false, jobId: null, artisan: '', orderRef: '', flatFee: 0, brandPaidTotal: 0, bankDetail: null, hasBankDetails: false }); setSampleAlreadyReleased(false); }}
+              onClose={() => { setSampleReleaseModal(SAMPLE_RELEASE_MODAL_INITIAL); setSampleAlreadyReleased(false); }}
             >
               <div className="space-y-4">
 
@@ -1091,6 +1155,57 @@ export default function PaymentsPage() {
                   </div>
                 </div>
 
+                {sampleReleaseModal.otpStep ? (
+                  /* ── OTP Step ── */
+                  <>
+                    <div className="flex items-start gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3">
+                      <AlertCircle className="h-4 w-4 mt-0.5 shrink-0 text-blue-600" />
+                      <p className="text-sm text-blue-800">
+                        Check the admin&apos;s <strong>email</strong> for an OTP and enter it below to authorise this transfer.
+                      </p>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold uppercase tracking-wide text-[#A39289] mb-1.5">One-Time Password (OTP)</label>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        maxLength={6}
+                        autoFocus
+                        value={sampleReleaseModal.otp}
+                        onChange={(e) => setSampleReleaseModal((p) => ({ ...p, otp: e.target.value.replace(/\D/g, '') }))}
+                        placeholder="e.g. 123456"
+                        className="w-full rounded-xl border border-[#E8DED5] bg-[#FDFAF8] px-4 py-3.5 text-center text-2xl font-extrabold tracking-[0.5em] text-ink outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100 transition"
+                      />
+                    </div>
+
+                    {sampleReleaseModal.otpError && (
+                      <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                        <AlertCircle className="h-4 w-4 shrink-0" /> {sampleReleaseModal.otpError}
+                      </div>
+                    )}
+
+                    <div className="flex gap-3">
+                      <button
+                        onClick={handleSampleOtpConfirm}
+                        disabled={actionLoading || sampleReleaseModal.otp.length < 4}
+                        className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-amber-600 py-3 text-sm font-bold text-white hover:bg-amber-700 disabled:opacity-50 transition-colors shadow-sm"
+                      >
+                        {actionLoading
+                          ? <><Loader2 className="h-4 w-4 animate-spin" /> Verifying…</>
+                          : <><CheckCircle2 className="h-4 w-4" /> Confirm OTP</>
+                        }
+                      </button>
+                      <button
+                        onClick={() => { setSampleReleaseModal(SAMPLE_RELEASE_MODAL_INITIAL); setSampleAlreadyReleased(false); }}
+                        className="flex-1 rounded-xl border border-[#E8DED5] bg-white px-4 py-2.5 text-sm font-medium text-ink hover:bg-atmosphere transition-colors"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <>
                 {/* Artisan bank account status */}
                 {hasBankDetails ? (
                   <div className="flex items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
@@ -1192,12 +1307,14 @@ export default function PaymentsPage() {
                       : `Release ${fmt(artisanAmt)} to Artisan`}
                   </button>
                   <button
-                    onClick={() => { setSampleReleaseModal({ open: false, jobId: null, artisan: '', orderRef: '', flatFee: 0, brandPaidTotal: 0, bankDetail: null, hasBankDetails: false }); setSampleAlreadyReleased(false); }}
+                    onClick={() => { setSampleReleaseModal(SAMPLE_RELEASE_MODAL_INITIAL); setSampleAlreadyReleased(false); }}
                     className="flex-1 rounded-xl border border-[#E8DED5] bg-white px-4 py-2.5 text-sm font-medium text-ink hover:bg-atmosphere transition-colors"
                   >
                     {sampleAlreadyReleased ? 'Close' : 'Cancel'}
                   </button>
                 </div>
+                  </>
+                )}
               </div>
             </Modal>
           );
@@ -1219,7 +1336,7 @@ export default function PaymentsPage() {
             <Modal
               title={`Release Stage ${stage} Payment`}
               open={confirmModal.open}
-              onClose={() => setConfirmModal({ open: false, orderId: null, stage: 1, amount: 0, artisan: '', orderRef: '', escrowBalance: 0, breakdown: null, bankDetail: null, hasBankDetails: false })}
+              onClose={() => setConfirmModal(CONFIRM_MODAL_INITIAL)}
             >
               <div className="space-y-4">
 
@@ -1235,6 +1352,59 @@ export default function PaymentsPage() {
                   </div>
                 </div>
 
+                {confirmModal.otpStep ? (
+                  /* ── OTP Step ── */
+                  <>
+                    <div className="flex items-start gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3">
+                      <AlertCircle className="h-4 w-4 mt-0.5 shrink-0 text-blue-600" />
+                      <p className="text-sm text-blue-800">
+                        Check the admin&apos;s <strong>email</strong> for an OTP and enter it below to authorise this transfer.
+                      </p>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold uppercase tracking-wide text-[#A39289] mb-1.5">One-Time Password (OTP)</label>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        maxLength={6}
+                        autoFocus
+                        value={confirmModal.otp}
+                        onChange={(e) => setConfirmModal((p) => ({ ...p, otp: e.target.value.replace(/\D/g, '') }))}
+                        placeholder="e.g. 123456"
+                        className="w-full rounded-xl border border-[#E8DED5] bg-[#FDFAF8] px-4 py-3.5 text-center text-2xl font-extrabold tracking-[0.5em] text-ink outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100 transition"
+                      />
+                    </div>
+
+                    {confirmModal.otpError && (
+                      <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                        <AlertCircle className="h-4 w-4 shrink-0" /> {confirmModal.otpError}
+                      </div>
+                    )}
+
+                    <div className="flex gap-3">
+                      <button
+                        onClick={handleStageOtpConfirm}
+                        disabled={actionLoading || confirmModal.otp.length < 4}
+                        className={`flex-1 inline-flex items-center justify-center gap-2 rounded-xl py-3 text-sm font-bold text-white disabled:opacity-50 transition-colors shadow-sm ${
+                          isStage1 ? 'bg-amber-600 hover:bg-amber-700' : 'bg-emerald-600 hover:bg-emerald-700'
+                        }`}
+                      >
+                        {actionLoading
+                          ? <><Loader2 className="h-4 w-4 animate-spin" /> Verifying…</>
+                          : <><CheckCircle2 className="h-4 w-4" /> Confirm OTP</>
+                        }
+                      </button>
+                      <button
+                        onClick={() => setConfirmModal(CONFIRM_MODAL_INITIAL)}
+                        className="flex-1 rounded-xl border border-[#E8DED5] bg-white px-4 py-2.5 text-sm font-medium text-ink hover:bg-atmosphere transition-colors"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <>
                 {/* Stage badge */}
                 <div className={`flex items-center gap-3 rounded-xl border px-4 py-3 ${
                   isStage1
@@ -1344,12 +1514,14 @@ export default function PaymentsPage() {
                     }
                   </button>
                   <button
-                    onClick={() => setConfirmModal({ open: false, orderId: null, stage: 1, amount: 0, artisan: '', orderRef: '', escrowBalance: 0, breakdown: null, bankDetail: null, hasBankDetails: false })}
+                    onClick={() => setConfirmModal(CONFIRM_MODAL_INITIAL)}
                     className="flex-1 rounded-xl border border-[#E8DED5] bg-white px-4 py-2.5 text-sm font-medium text-ink hover:bg-atmosphere transition-colors"
                   >
                     Cancel
                   </button>
                 </div>
+                  </>
+                )}
 
               </div>
             </Modal>

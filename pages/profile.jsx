@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import PageWrapper from '@/components/layout/PageWrapper';
 import AdminRoute from '@/components/auth/AdminRoute';
+import Modal from '@/components/ui/Modal';
 import apiClient from '@/services/apiClient';
 import {
   Save, Loader2, CheckCircle2, AlertCircle, ShieldCheck,
@@ -90,6 +91,7 @@ export default function ProfilePage() {
   const [resolvedName, setResolvedName] = useState('');
   const [verifyError, setVerifyError] = useState('');
   const [savingBank, setSavingBank]   = useState(false);
+  const [bankOtpModal, setBankOtpModal] = useState({ open: false, otp: '', error: '' });
 
   // Load saved bank detail + live bank list
   useEffect(() => {
@@ -163,11 +165,39 @@ export default function ProfilePage() {
 
     setSavingBank(true);
     try {
-      await apiClient.put('/admin/bank-details', bankForm);
-      setDbDetail({ ...bankForm });
-      show('Bank details saved successfully.');
+      const res = await apiClient.put('/admin/bank-details', bankForm);
+      if (res.data.requiresOtp) {
+        setBankOtpModal({ open: true, otp: '', error: '' });
+        show(res.data.message || 'OTP sent to your admin email.');
+      } else {
+        setDbDetail({ ...bankForm });
+        show(res.data.message || 'Bank details saved successfully.');
+      }
     } catch (err) {
       show(err.response?.data?.message || 'Failed to save bank details.', true);
+    } finally {
+      setSavingBank(false);
+    }
+  };
+
+  const handleBankOtpConfirm = async () => {
+    if (!bankOtpModal.otp.trim()) {
+      setBankOtpModal((p) => ({ ...p, error: 'Enter the OTP from your admin email.' }));
+      return;
+    }
+    setSavingBank(true);
+    setBankOtpModal((p) => ({ ...p, error: '' }));
+    try {
+      const res = await apiClient.put('/admin/bank-details', { ...bankForm, otp: bankOtpModal.otp.trim() });
+      if (res.data.requiresOtp) {
+        setBankOtpModal((p) => ({ ...p, error: 'Still awaiting confirmation — request a new OTP and try again.' }));
+        return;
+      }
+      setDbDetail({ ...bankForm });
+      setBankOtpModal({ open: false, otp: '', error: '' });
+      show(res.data.message || 'Bank details saved successfully.');
+    } catch (err) {
+      setBankOtpModal((p) => ({ ...p, error: err.response?.data?.message || 'Incorrect OTP.' }));
     } finally {
       setSavingBank(false);
     }
@@ -381,8 +411,8 @@ export default function ProfilePage() {
                     required
                   >
                     <option value="">Select your bank</option>
-                    {banks.map((b) => (
-                      <option key={b.code} value={b.code}>{b.name}</option>
+                    {banks.map((b, i) => (
+                      <option key={b.id ?? `${b.code}-${i}`} value={b.code}>{b.name}</option>
                     ))}
                   </select>
                 </div>
@@ -475,6 +505,61 @@ export default function ProfilePage() {
           </Section>
 
         </div>
+
+        {/* ── OTP confirmation modal ─────────────────────────────────────── */}
+        <Modal
+          title="Confirm Bank Details Change"
+          open={bankOtpModal.open}
+          onClose={() => setBankOtpModal({ open: false, otp: '', error: '' })}
+        >
+          <div className="space-y-4">
+            <div className="flex items-start gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3">
+              <AlertCircle className="h-4 w-4 mt-0.5 shrink-0 text-blue-600" />
+              <p className="text-sm text-blue-800">
+                Check your admin email for a 6-digit code and enter it below to confirm this change.
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wide text-[#A39289] mb-1.5">One-Time Password (OTP)</label>
+              <input
+                type="text"
+                inputMode="numeric"
+                maxLength={6}
+                autoFocus
+                value={bankOtpModal.otp}
+                onChange={(e) => setBankOtpModal((p) => ({ ...p, otp: e.target.value.replace(/\D/g, '') }))}
+                placeholder="e.g. 123456"
+                className="w-full rounded-xl border border-[#E8DED5] bg-[#FDFAF8] px-4 py-3.5 text-center text-2xl font-extrabold tracking-[0.5em] text-ink outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition"
+              />
+            </div>
+
+            {bankOtpModal.error && (
+              <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                <AlertCircle className="h-4 w-4 shrink-0" /> {bankOtpModal.error}
+              </div>
+            )}
+
+            <div className="flex gap-3">
+              <button
+                onClick={handleBankOtpConfirm}
+                disabled={savingBank || bankOtpModal.otp.length < 4}
+                className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-blue-700 py-3 text-sm font-bold text-white hover:bg-blue-800 disabled:opacity-50 transition-colors shadow-sm"
+              >
+                {savingBank
+                  ? <><Loader2 className="h-4 w-4 animate-spin" /> Verifying…</>
+                  : <><CheckCircle2 className="h-4 w-4" /> Confirm OTP</>
+                }
+              </button>
+              <button
+                onClick={() => setBankOtpModal({ open: false, otp: '', error: '' })}
+                className="flex-1 rounded-xl border border-[#E8DED5] bg-white px-4 py-2.5 text-sm font-medium text-ink hover:bg-atmosphere transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </Modal>
       </PageWrapper>
     </AdminRoute>
   );

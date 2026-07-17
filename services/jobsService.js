@@ -81,6 +81,7 @@ export async function getAllJobsFromOrders() {
         artisanHasBankDetails:   !!job.artisan?.bankDetail?.accountNumber,
         hasVideo:                !!job.video?.url,
         videoUrl:                job.video?.url || null,
+        updates:                 job.updates || [],
         correctionCount:         job.correctionCount ?? 0,
         correctionNote:          job.correctionNote ?? null,
         brandVideoVisible:       job.brandVideoVisible ?? false,
@@ -138,8 +139,8 @@ export async function dispatchProduction(jobId) {
  * Release 70% sample flat fee to artisan.
  * Admin retains 30% commission.
  */
-export async function releaseSamplePayment(jobId) {
-  const res = await apiClient.post(`/admin/jobs/${jobId}/release-sample-payment`, {});
+export async function releaseSamplePayment(jobId, otp) {
+  const res = await apiClient.post(`/admin/jobs/${jobId}/release-sample-payment`, otp ? { otp } : {});
   return res.data;
 }
 

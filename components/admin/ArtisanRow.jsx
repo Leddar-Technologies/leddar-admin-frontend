@@ -10,6 +10,12 @@ const statusStyles = {
   REJECTED: "bg-red-50 text-red-700 border-red-100",
 };
 
+const PRODUCES_FOR_LABEL = {
+  MALE:   "Male Wear",
+  FEMALE: "Female Wear",
+  UNISEX: "Unisex / Both",
+};
+
 export default function ArtisanRow({ artisan, onAction }) {
   const handleClick = (e, type) => {
     e.preventDefault();
@@ -30,8 +36,13 @@ export default function ArtisanRow({ artisan, onAction }) {
       {/* Artisan Details */}
       <td className="px-6 py-5">
         <div className="flex flex-col gap-1">
-          <span className="font-bold text-ink">
+          <span className="flex items-center gap-1.5 font-bold text-ink">
             {artisan.fullName || "Unknown Artisan"}
+            {artisan.producesFor && (
+              <span className="rounded-full border border-[#E8DED5] bg-atmosphere px-1.5 py-0.5 text-[9px] font-bold text-leather">
+                {PRODUCES_FOR_LABEL[artisan.producesFor] || artisan.producesFor}
+              </span>
+            )}
           </span>
           <span className="text-xs text-[#A39289]">{artisan.email}</span>
           {/* KYC breakdown chips */}
@@ -55,9 +66,13 @@ export default function ArtisanRow({ artisan, onAction }) {
               <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[9px] font-bold text-emerald-700">
                 <MapPin size={9} /> Addr ✓
               </span>
-            ) : artisan.addressStatus === "FAILED" ? (
+            ) : artisan.addressStatus === "NOT_VERIFIED" ? (
               <span className="inline-flex items-center gap-1 rounded-full border border-red-200 bg-red-50 px-1.5 py-0.5 text-[9px] font-bold text-red-600">
-                <MapPin size={9} /> Addr Failed
+                <MapPin size={9} /> Addr Not Verified
+              </span>
+            ) : artisan.addressStatus === "FAILED" ? (
+              <span className="inline-flex items-center gap-1 rounded-full border border-orange-200 bg-orange-50 px-1.5 py-0.5 text-[9px] font-bold text-orange-600">
+                <MapPin size={9} /> Addr Submit Failed
               </span>
             ) : artisan.addressStatus === "IN_PROGRESS" ? (
               <span className="inline-flex items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-1.5 py-0.5 text-[9px] font-bold text-blue-600">

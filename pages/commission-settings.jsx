@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import PageWrapper from '@/components/layout/PageWrapper';
 import AdminRoute from '@/components/auth/AdminRoute';
+import Modal from '@/components/ui/Modal';
 import {
   getCommissionSettings, updateCommissionSettings,
   getSamplePricingSettings, updateSamplePricingSettings,
   VAT_RATE,
 } from '@/services/commissionService';
 import { toast } from 'react-hot-toast';
-import { Save, RefreshCw, FlaskConical, Package, Info, CheckCircle2, AlertCircle, Clock } from 'lucide-react';
+import { Save, RefreshCw, FlaskConical, Package, Info, CheckCircle2, AlertCircle, Clock, Loader2 } from 'lucide-react';
 
 const fmt = (n) => `₦${Number(n).toLocaleString('en-NG')}`;
 const pct = (n) => `${n}%`;
@@ -109,6 +110,10 @@ export default function CommissionSettingsPage() {
   const [pricingDraft, setPricingDraft] = useState([]);
   const [savingPricing, setSavingPricing] = useState(false);
 
+  // action: 'commission' | 'pricing' — which save flow the OTP confirms
+  const [otpModal, setOtpModal] = useState({ open: false, otp: '', error: '', action: null });
+  const [pendingPricingPayload, setPendingPricingPayload] = useState(null);
+
   // Preview amounts
   const [previewSample, setPreviewSample]   = useState(30000);
   const [previewProd, setPreviewProd]       = useState(500000);
@@ -163,12 +168,53 @@ export default function CommissionSettingsPage() {
     if (!canSave) return;
     setSaving(true);
     try {
-      const updated = await updateCommissionSettings(form);
-      setSaved(updated);
-      setForm({ ...updated });
-      toast.success('Commission settings saved');
+      const result = await updateCommissionSettings(form);
+      if (result.requiresOtp) {
+        setOtpModal({ open: true, otp: '', error: '', action: 'commission' });
+        toast(result.message || 'OTP sent to your admin email.');
+      } else {
+        setSaved(result.data);
+        setForm({ ...result.data });
+        toast.success(result.message || 'Commission settings saved');
+      }
     } catch (err) {
       toast.error(err?.response?.data?.message || 'Failed to save');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleOtpConfirm = async () => {
+    if (!otpModal.otp.trim()) {
+      setOtpModal((p) => ({ ...p, error: 'Enter the OTP from your admin email.' }));
+      return;
+    }
+    setSaving(true);
+    setOtpModal((p) => ({ ...p, error: '' }));
+    try {
+      if (otpModal.action === 'pricing') {
+        const result = await updateSamplePricingSettings(pendingPricingPayload, otpModal.otp.trim());
+        if (result.requiresOtp) {
+          setOtpModal((p) => ({ ...p, error: 'Still awaiting confirmation — request a new OTP and try again.' }));
+          return;
+        }
+        setPricing(pendingPricingPayload);
+        setPendingPricingPayload(null);
+        setOtpModal({ open: false, otp: '', error: '', action: null });
+        toast.success(result.message || 'Sample prices updated');
+      } else {
+        const result = await updateCommissionSettings(form, otpModal.otp.trim());
+        if (result.requiresOtp) {
+          setOtpModal((p) => ({ ...p, error: 'Still awaiting confirmation — request a new OTP and try again.' }));
+          return;
+        }
+        setSaved(result.data);
+        setForm({ ...result.data });
+        setOtpModal({ open: false, otp: '', error: '', action: null });
+        toast.success(result.message || 'Commission settings saved');
+      }
+    } catch (err) {
+      setOtpModal((p) => ({ ...p, error: err?.response?.data?.message || 'Incorrect OTP.' }));
     } finally {
       setSaving(false);
     }
@@ -181,13 +227,18 @@ export default function CommissionSettingsPage() {
   };
 
   const onSavePricing = async () => {
+    const payload = pricingDraft.map(({ productType, price }) => ({ productType, price: Number(price) }));
     setSavingPricing(true);
     try {
-      await updateSamplePricingSettings(
-        pricingDraft.map(({ productType, price }) => ({ productType, price: Number(price) }))
-      );
-      setPricing(pricingDraft.map((r) => ({ ...r, price: Number(r.price) })));
-      toast.success('Sample prices updated');
+      const result = await updateSamplePricingSettings(payload);
+      if (result.requiresOtp) {
+        setPendingPricingPayload(payload);
+        setOtpModal({ open: true, otp: '', error: '', action: 'pricing' });
+        toast(result.message || 'OTP sent to your admin email.');
+      } else {
+        setPricing(payload);
+        toast.success(result.message || 'Sample prices updated');
+      }
     } catch (err) {
       toast.error(err?.response?.data?.message || 'Failed to save pricing');
     } finally {
@@ -578,6 +629,61 @@ export default function CommissionSettingsPage() {
             </div>
           </div>
         </section>
+
+        {/* ── OTP confirmation modal ─────────────────────────────────────── */}
+        <Modal
+          title={otpModal.action === 'pricing' ? 'Confirm Sample Pricing Change' : 'Confirm Commission Settings Change'}
+          open={otpModal.open}
+          onClose={() => { setOtpModal({ open: false, otp: '', error: '', action: null }); setPendingPricingPayload(null); }}
+        >
+          <div className="space-y-4">
+            <div className="flex items-start gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3">
+              <AlertCircle className="h-4 w-4 mt-0.5 shrink-0 text-blue-600" />
+              <p className="text-sm text-blue-800">
+                Check your admin email for a 6-digit code and enter it below to confirm this change.
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wide text-[#A39289] mb-1.5">One-Time Password (OTP)</label>
+              <input
+                type="text"
+                inputMode="numeric"
+                maxLength={6}
+                autoFocus
+                value={otpModal.otp}
+                onChange={(e) => setOtpModal((p) => ({ ...p, otp: e.target.value.replace(/\D/g, '') }))}
+                placeholder="e.g. 123456"
+                className="w-full rounded-xl border border-[#E8DED5] bg-[#FDFAF8] px-4 py-3.5 text-center text-2xl font-extrabold tracking-[0.5em] text-ink outline-none focus:border-leather focus:ring-2 focus:ring-leather/10 transition"
+              />
+            </div>
+
+            {otpModal.error && (
+              <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                <AlertCircle className="h-4 w-4 shrink-0" /> {otpModal.error}
+              </div>
+            )}
+
+            <div className="flex gap-3">
+              <button
+                onClick={handleOtpConfirm}
+                disabled={saving || otpModal.otp.length < 4}
+                className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-leather py-3 text-sm font-bold text-white hover:opacity-90 disabled:opacity-50 transition-colors shadow-sm"
+              >
+                {saving
+                  ? <><Loader2 className="h-4 w-4 animate-spin" /> Verifying…</>
+                  : <><CheckCircle2 className="h-4 w-4" /> Confirm OTP</>
+                }
+              </button>
+              <button
+                onClick={() => { setOtpModal({ open: false, otp: '', error: '', action: null }); setPendingPricingPayload(null); }}
+                className="flex-1 rounded-xl border border-[#E8DED5] bg-white px-4 py-2.5 text-sm font-medium text-ink hover:bg-atmosphere transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </Modal>
 
       </PageWrapper>
     </AdminRoute>

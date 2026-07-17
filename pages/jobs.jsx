@@ -318,6 +318,12 @@ function JobPanel({ job, onActionDone }) {
               ) : (
                 <div className="flex items-center justify-center rounded-xl bg-black h-32 text-white/50 text-sm">Loading video…</div>
               )}
+              {adminVideoStatus !== "REJECTED" && job.updates?.find((u) => u.message) && (
+                <div className="mt-2 rounded-xl border border-[#E8DED5] bg-atmosphere p-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-[#A39289] mb-1">Artisan's Note</p>
+                  <p className="text-sm text-ink whitespace-pre-wrap">{job.updates.find((u) => u.message).message}</p>
+                </div>
+              )}
               {adminVideoStatus !== "APPROVED" && adminVideoStatus !== "REJECTED" && (
                 <div className="mt-2 flex gap-2">
                   <button
@@ -561,6 +567,7 @@ export default function JobsPage() {
   const [deadlineDays, setDeadlineDays]       = useState(2);
   const [filterSpecialty, setFilterSpecialty] = useState("");
   const [filterMinCapacity, setFilterMinCapacity] = useState("");
+  const [filterProducesFor, setFilterProducesFor] = useState("");
 
   // Active jobs filters
   const [filterJobType, setFilterJobType]     = useState("");
@@ -615,6 +622,12 @@ export default function JobsPage() {
     FLEXIBLE:         "Flexible (4 months default)",
   };
 
+  const PRODUCES_FOR_LABEL = {
+    MALE:   "Male Wear",
+    FEMALE: "Female Wear",
+    UNISEX: "Unisex / Both",
+  };
+
   const daysFromNow = (days) => {
     const d = new Date();
     d.setDate(d.getDate() + days);
@@ -639,6 +652,7 @@ export default function JobsPage() {
     setAssignError("");
     setFilterSpecialty("");
     setFilterMinCapacity("");
+    setFilterProducesFor("");
     setAssignModal(true);
   };
 
@@ -682,6 +696,7 @@ export default function JobsPage() {
         !j.brandName?.toLowerCase().includes(q) &&
         !j.artisanName?.toLowerCase().includes(q) &&
         !j.orderRef?.toLowerCase().includes(q) &&
+        !j.quoteRef?.toLowerCase().includes(q) &&
         !j.productType?.toLowerCase().includes(q)
       ) return false;
     }
@@ -706,6 +721,7 @@ export default function JobsPage() {
       const specs = Array.isArray(a.specialty) ? a.specialty : (a.specialty ? [a.specialty] : []);
       if (filterSpecialty && !specs.includes(filterSpecialty)) return false;
       if (filterMinCapacity && (a.capacityPerWeek || 0) < Number(filterMinCapacity)) return false;
+      if (filterProducesFor && a.producesFor !== filterProducesFor) return false;
       return true;
     });
     // Sort: fresh artisans first, previously declined/expired last
@@ -714,7 +730,7 @@ export default function JobsPage() {
       const bRejected = b.previouslyDeclined || b.previouslyExpired ? 1 : 0;
       return aRejected - bRejected;
     });
-  }, [availableArtisans, filterSpecialty, filterMinCapacity]);
+  }, [availableArtisans, filterSpecialty, filterMinCapacity, filterProducesFor]);
 
   return (
     <AdminRoute>
@@ -873,7 +889,7 @@ export default function JobsPage() {
                     <input
                       value={filterSearch}
                       onChange={(e) => setFilterSearch(e.target.value)}
-                      placeholder="Brand, artisan, order ref…"
+                      placeholder="Brand, artisan, order ref, quote ref…"
                       className="w-full rounded-xl border border-[#E8DED5] px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-leather/20 focus:border-leather"
                     />
                   </div>
@@ -963,7 +979,18 @@ export default function JobsPage() {
                                 <td className="px-4 py-3 font-medium text-ink">{displayJob.brandName}</td>
                                 <td className="px-4 py-3 text-[#5A4A44] text-xs">
                                   {displayJob.productType}
-                                  <BrandingBadges items={displayJob.brandProvides} className="mt-1" />
+                                  {(() => {
+                                    const branding = (displayJob.brandProvides || []).filter((i) => i !== BRANDING_NONE);
+                                    if (branding.length === 0) return null;
+                                    return (
+                                      <p
+                                        className="mt-1 max-w-[160px] truncate text-[10px] font-semibold text-[#8A6A00]"
+                                        title={branding.join(", ")}
+                                      >
+                                        {branding.join(", ")}
+                                      </p>
+                                    );
+                                  })()}
                                 </td>
                                 <td className="px-4 py-3">
                                   <p className="text-sm font-medium text-ink">{displayJob.artisanName}</p>
@@ -1190,6 +1217,19 @@ export default function JobsPage() {
                       className="w-full rounded-xl border border-[#E8DED5] px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-leather/20 focus:border-leather"
                     />
                   </div>
+                  <div className="flex-1">
+                    <label className="block text-xs font-semibold text-[#A39289] uppercase mb-1">Produces For</label>
+                    <select
+                      value={filterProducesFor}
+                      onChange={(e) => { setFilterProducesFor(e.target.value); setSelectedArtisan(""); }}
+                      className="w-full rounded-xl border border-[#E8DED5] px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-leather/20 focus:border-leather bg-white"
+                    >
+                      <option value="">All Categories</option>
+                      <option value="MALE">Male Wear</option>
+                      <option value="FEMALE">Female Wear</option>
+                      <option value="UNISEX">Unisex / Both</option>
+                    </select>
+                  </div>
                 </div>
 
                 {/* Artisan picker */}
@@ -1242,6 +1282,11 @@ export default function JobsPage() {
                               </p>
                             </div>
                             <div className="flex shrink-0 items-center gap-1.5">
+                              {a.producesFor && (
+                                <span className="rounded-full bg-atmosphere border border-[#E8DED5] px-2 py-0.5 text-[10px] font-bold text-leather">
+                                  {PRODUCES_FOR_LABEL[a.producesFor] || a.producesFor}
+                                </span>
+                              )}
                               {wasDeclined && (
                                 <span className="rounded-full bg-red-50 border border-red-200 px-2 py-0.5 text-[10px] font-bold text-red-600">
                                   Declined
