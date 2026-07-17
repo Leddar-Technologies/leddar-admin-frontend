@@ -320,7 +320,7 @@ function JobPanel({ job, onActionDone }) {
               )}
               {adminVideoStatus !== "REJECTED" && job.updates?.find((u) => u.message) && (
                 <div className="mt-2 rounded-xl border border-[#E8DED5] bg-atmosphere p-3">
-                  <p className="text-[11px] font-semibold uppercase tracking-wide text-[#A39289] mb-1">Artisan's Note</p>
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-[#A39289] mb-1">Artisan&apos;s Note</p>
                   <p className="text-sm text-ink whitespace-pre-wrap">{job.updates.find((u) => u.message).message}</p>
                 </div>
               )}
