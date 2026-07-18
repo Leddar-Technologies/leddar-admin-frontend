@@ -38,9 +38,8 @@ const adminAuthSlice = createSlice({
       state.admin = null;
       state.error = null;
       state.loading = false;
-      // 🔥 Clear storage on logout
-      localStorage.removeItem("token");
-      localStorage.removeItem("admin");
+      // Session is persisted under this single key by services/authService.js
+      localStorage.removeItem("leddar_admin_session");
     },
     clearAuthError: (state) => {
       state.error = null;
@@ -56,13 +55,8 @@ const adminAuthSlice = createSlice({
         state.loading = false;
         state.admin = action.payload;
         state.error = null;
-
-        // 🔥 Persist the token and admin data
-        // Ensure your API returns the token inside the data object
-        if (action.payload.token) {
-          localStorage.setItem("token", action.payload.token);
-          localStorage.setItem("admin", JSON.stringify(action.payload));
-        }
+        // Token/session persistence already happened inside login()
+        // (services/authService.js) — it writes leddar_admin_session directly.
       })
       .addCase(loginAdmin.rejected, (state, action) => {
         state.loading = false;

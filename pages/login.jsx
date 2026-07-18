@@ -25,7 +25,7 @@ export default function LoginPage() {
  }, []);
 
   useEffect(() => {
-    if (admin && (admin.role === "ADMIN" || admin.token)) {
+    if (admin?.role === "ADMIN") {
       setRedirecting(true);
       const timer = setTimeout(() => {
         router.push("/dashboard");

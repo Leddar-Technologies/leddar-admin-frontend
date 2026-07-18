@@ -721,7 +721,9 @@ export default function JobsPage() {
       const specs = Array.isArray(a.specialty) ? a.specialty : (a.specialty ? [a.specialty] : []);
       if (filterSpecialty && !specs.includes(filterSpecialty)) return false;
       if (filterMinCapacity && (a.capacityPerWeek || 0) < Number(filterMinCapacity)) return false;
-      if (filterProducesFor && a.producesFor !== filterProducesFor) return false;
+      // Artisans who haven't set producesFor yet shouldn't be hidden by every filter —
+      // only exclude when they've explicitly set a value that doesn't match.
+      if (filterProducesFor && a.producesFor && a.producesFor !== filterProducesFor) return false;
       return true;
     });
     // Sort: fresh artisans first, previously declined/expired last
