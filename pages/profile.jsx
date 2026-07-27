@@ -217,6 +217,11 @@ export default function ProfilePage() {
     }
   };
 
+  const bankIsDirty =
+    bankForm.bankCode      !== (dbDetail?.bankCode      || '') ||
+    bankForm.accountNumber !== (dbDetail?.accountNumber || '') ||
+    bankForm.accountName   !== (dbDetail?.accountName   || '');
+
   const handleSavePw = async (e) => {
     e.preventDefault();
     if (pw.next !== pw.confirm) return show('New passwords do not match.', true);
@@ -491,7 +496,7 @@ export default function ProfilePage() {
                   </div>
                   <button
                     type="submit"
-                    disabled={savingBank || verifyState !== 'verified'}
+                    disabled={savingBank || verifyState !== 'verified' || !bankIsDirty}
                     className="inline-flex items-center gap-2 rounded-xl bg-blue-700 px-5 py-2.5 text-sm font-bold text-white hover:bg-blue-800 disabled:opacity-50 transition-all"
                   >
                     {savingBank

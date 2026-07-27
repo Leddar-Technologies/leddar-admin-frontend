@@ -145,7 +145,25 @@ export default function CommissionSettingsPage() {
 
   const prodValid   = prodTotal === 100;
   const sampleValid = Number(form?.sampleAdminRate || 0) <= 100;
-  const canSave     = prodValid && sampleValid;
+
+  const formIsDirty = useMemo(() => {
+    if (!form || !saved) return false;
+    return (
+      Number(form.adminRate)                 !== Number(saved.adminRate) ||
+      Number(form.artisanStage1Rate)          !== Number(saved.artisanStage1Rate) ||
+      Number(form.artisanStage2Rate)          !== Number(saved.artisanStage2Rate) ||
+      Number(form.sampleAdminRate)            !== Number(saved.sampleAdminRate) ||
+      Number(form.sampleAcceptanceHours)      !== Number(saved.sampleAcceptanceHours) ||
+      Number(form.productionAcceptanceHours)  !== Number(saved.productionAcceptanceHours)
+    );
+  }, [form, saved]);
+
+  const canSave = prodValid && sampleValid && formIsDirty;
+
+  const pricingIsDirty = useMemo(() => {
+    const savedMap = Object.fromEntries(pricing.map((r) => [r.productType, Number(r.price)]));
+    return pricingDraft.some((r) => Number(r.price) !== savedMap[r.productType]);
+  }, [pricing, pricingDraft]);
 
   // Live preview
   const sampleBrandPays   = Math.round(previewSample * (1 + VAT_RATE));
@@ -618,7 +636,7 @@ export default function CommissionSettingsPage() {
               <p className="text-xs text-[#A39289]">Changes apply immediately to new sample requests.</p>
               <button
                 onClick={onSavePricing}
-                disabled={savingPricing}
+                disabled={savingPricing || !pricingIsDirty}
                 className="inline-flex items-center gap-2 rounded-xl bg-leather px-5 py-2.5 text-sm font-bold text-white shadow-sm hover:opacity-90 disabled:opacity-60 transition-all"
               >
                 {savingPricing
