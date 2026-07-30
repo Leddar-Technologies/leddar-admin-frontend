@@ -325,21 +325,30 @@ export default function ArtisanProfilePage() {
         const canResync = addr.status === "IN_PROGRESS" && !!addr.qoreidRequestId;
 
         const qr = addr.qoreidResponse || null;
-        const reportStatus   = qr && pick(qr, ["status.status", "status"]);
-        const reportApproved = qr && pick(qr, ["status.approvedAt", "approvedAt", "completedAt"]);
+        const reportStatus   = qr && pick(qr, ["address.status.status", "status.status", "status"]);
+        const reportApproved = qr && pick(qr, ["address.approvedAt", "status.approvedAt", "approvedAt", "completedAt"]);
         const reportPhone    = qr && pick(qr, ["applicant.phone", "applicant.phoneNumber", "phoneNumber", "phone"]);
-        const reportStreet   = qr && pick(qr, ["address.street", "street"]);
-        const reportLandmark = qr && pick(qr, ["address.landmark", "landmark"]);
-        const reportBuildingType    = qr && pick(qr, ["address.buildingType", "buildingType"]);
-        const reportBuildingStatus  = qr && pick(qr, ["address.buildingStatus", "buildingStatus"]);
-        const reportBuildingPurpose = qr && pick(qr, ["address.buildingPurpose", "buildingPurpose"]);
+        const reportStreet   = qr && pick(qr, ["address.location.street", "address.street", "street"]);
+        const reportLandmark = qr && pick(qr, ["address.location.landmark", "address.landmark", "landmark"]);
+        const reportBuildingType    = qr && pick(qr, ["address.addressBasic.buildingType", "address.buildingType", "buildingType"]);
+        const reportBuildingStatus  = qr && pick(qr, ["address.addressBasic.buildingStatus", "address.buildingStatus", "buildingStatus"]);
+        const reportBuildingPurpose = qr && pick(qr, ["address.addressBasic.buildingPurpose", "address.buildingPurpose", "buildingPurpose"]);
         const reportAgentComment   = qr && pick(qr, ["address.agentComment", "agentComment", "summary.agentComment"]);
-        const rawCoordinates = qr && pick(qr, ["address.coordinates", "coordinates", "address.geoCoordinates"]);
-        const coordinates     = parseCoordinates(rawCoordinates);
-        const rawPhotos = qr && pick(qr, ["address.photos", "photos", "images"]);
+
+        const rawLat = qr && pick(qr, ["address.location.latitude", "address.latitude", "latitude"]);
+        const rawLng = qr && pick(qr, ["address.location.longitude", "address.longitude", "longitude"]);
+        const coordinates =
+          rawLat != null && rawLng != null
+            ? { lat: Number(rawLat), lng: Number(rawLng) }
+            : parseCoordinates(qr && pick(qr, ["address.coordinates", "coordinates", "address.geoCoordinates"]));
+
+        // QoreID returns exterior photos as an object ({ photo1, photo2, ... }), not an array.
+        const rawPhotos = qr && pick(qr, ["address.exteriorPhotos", "exteriorPhotos", "address.photos", "photos", "images"]);
         const photos = Array.isArray(rawPhotos)
           ? rawPhotos.map((p) => (typeof p === "string" ? p : p?.url)).filter(Boolean)
-          : [];
+          : rawPhotos && typeof rawPhotos === "object"
+            ? Object.values(rawPhotos).filter((v) => typeof v === "string" && v)
+            : [];
 
         const hasReportFields =
           reportStatus || reportApproved || reportPhone || reportStreet || reportLandmark ||
