@@ -179,3 +179,10 @@ export async function finalizeArtisanPayment({ paymentId, otp }) {
   const res = await apiClient.post(`/admin/payments/${paymentId}/finalize-otp`, { otp });
   return res.data;
 }
+
+// ── Manual reconciliation (webhook never arrived) ────────────────────────────
+
+export async function resyncPayment(paymentId) {
+  const res = await apiClient.post(`/admin/payments/${paymentId}/resync`);
+  return res.data;
+}

@@ -454,7 +454,7 @@ export default function PaymentHistoryPage() {
                         {formatDate(r.createdAt)}
                       </td>
                       <td className="px-4 py-3">
-                        {['SAMPLE_FLAT_FEE', 'MATERIAL', 'SERVICE'].includes(r.stage) ? (
+                        {r.status === 'RELEASED' && ['SAMPLE_FLAT_FEE', 'MATERIAL', 'SERVICE'].includes(r.stage) ? (
                           <button
                             onClick={() => handleDownloadReceipt(r.id, r.orderRef)}
                             className="flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 transition-colors whitespace-nowrap"

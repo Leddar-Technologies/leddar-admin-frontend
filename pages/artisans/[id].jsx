@@ -11,6 +11,7 @@ import {
   getArtisanById,
   approveArtisan,
   rejectArtisan,
+  resyncAddressVerification,
 } from "@/services/artisansService";
 import {
   Mail,
@@ -26,7 +27,40 @@ import {
   Loader2,
   Landmark,
   AlertCircle,
+  RefreshCw,
 } from "lucide-react";
+
+// Safely reads the first present value out of a QoreID response for a handful
+// of possible key paths — the exact field names aren't publicly documented,
+// so we try common variants rather than assume one shape.
+function pick(obj, paths) {
+  for (const path of paths) {
+    const value = path.split(".").reduce((acc, key) => (acc == null ? acc : acc[key]), obj);
+    if (value !== undefined && value !== null && value !== "") return value;
+  }
+  return null;
+}
+
+// Normalizes {lat,lng} / {latitude,longitude} / "lat,lng" / [lat,lng] into { lat, lng }.
+function parseCoordinates(raw) {
+  if (!raw) return null;
+  if (typeof raw === "string") {
+    const [lat, lng] = raw.split(",").map((v) => parseFloat(v.trim()));
+    return Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : null;
+  }
+  if (Array.isArray(raw)) {
+    const [lat, lng] = raw;
+    return Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : null;
+  }
+  const lat = raw.lat ?? raw.latitude;
+  const lng = raw.lng ?? raw.lon ?? raw.longitude;
+  return Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : null;
+}
+
+function osmEmbedUrl({ lat, lng }, delta = 0.01) {
+  const bbox = `${lng - delta},${lat - delta},${lng + delta},${lat + delta}`;
+  return `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik&marker=${lat},${lng}`;
+}
 
 const PRODUCES_FOR_LABEL = {
   MALE:   "Male Wear",
@@ -41,22 +75,41 @@ export default function ArtisanProfilePage() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("Job History");
   const [actionLoading, setActionLoading] = useState(null);
+  const [resyncing, setResyncing] = useState(false);
+  const [resyncMsg, setResyncMsg] = useState(null);
+
+  async function loadData(artisanId) {
+    try {
+      setLoading(true);
+      const data = await getArtisanById(artisanId);
+      setArtisan(data);
+    } catch (err) {
+      console.error("Failed to load artisan profile", err);
+    } finally {
+      setLoading(false);
+    }
+  }
 
   useEffect(() => {
     if (!id) return;
-    async function loadData() {
-      try {
-        setLoading(true);
-        const data = await getArtisanById(id);
-        setArtisan(data);
-      } catch (err) {
-        console.error("Failed to load artisan profile", err);
-      } finally {
-        setLoading(false);
-      }
-    }
-    loadData();
+    loadData(id);
   }, [id]);
+
+  const handleResync = async () => {
+    if (!artisan?.id) return;
+    setResyncing(true);
+    setResyncMsg(null);
+    try {
+      const res = await resyncAddressVerification(artisan.id);
+      setResyncMsg({ text: res.message, isError: !res.success });
+      await loadData(id);
+    } catch (err) {
+      setResyncMsg({ text: err.response?.data?.message || err.message, isError: true });
+    } finally {
+      setResyncing(false);
+      setTimeout(() => setResyncMsg(null), 6000);
+    }
+  };
 
   const handleAction = async (type) => {
     if (!artisan?.userId) return;
@@ -268,6 +321,31 @@ export default function ArtisanProfilePage() {
           PENDING:      { label: "Saved · Awaiting Job", cls: "border-amber-200 bg-amber-50 text-amber-700" },
         }[addr.status] || { label: "Not Entered", cls: "border-[#E8DED5] bg-atmosphere text-[#A39289]" };
 
+        // Only makes sense to poll QoreID once we actually have a request in flight.
+        const canResync = addr.status === "IN_PROGRESS" && !!addr.qoreidRequestId;
+
+        const qr = addr.qoreidResponse || null;
+        const reportStatus   = qr && pick(qr, ["status.status", "status"]);
+        const reportApproved = qr && pick(qr, ["status.approvedAt", "approvedAt", "completedAt"]);
+        const reportPhone    = qr && pick(qr, ["applicant.phone", "applicant.phoneNumber", "phoneNumber", "phone"]);
+        const reportStreet   = qr && pick(qr, ["address.street", "street"]);
+        const reportLandmark = qr && pick(qr, ["address.landmark", "landmark"]);
+        const reportBuildingType    = qr && pick(qr, ["address.buildingType", "buildingType"]);
+        const reportBuildingStatus  = qr && pick(qr, ["address.buildingStatus", "buildingStatus"]);
+        const reportBuildingPurpose = qr && pick(qr, ["address.buildingPurpose", "buildingPurpose"]);
+        const reportAgentComment   = qr && pick(qr, ["address.agentComment", "agentComment", "summary.agentComment"]);
+        const rawCoordinates = qr && pick(qr, ["address.coordinates", "coordinates", "address.geoCoordinates"]);
+        const coordinates     = parseCoordinates(rawCoordinates);
+        const rawPhotos = qr && pick(qr, ["address.photos", "photos", "images"]);
+        const photos = Array.isArray(rawPhotos)
+          ? rawPhotos.map((p) => (typeof p === "string" ? p : p?.url)).filter(Boolean)
+          : [];
+
+        const hasReportFields =
+          reportStatus || reportApproved || reportPhone || reportStreet || reportLandmark ||
+          reportBuildingType || reportBuildingStatus || reportBuildingPurpose ||
+          reportAgentComment || coordinates || photos.length > 0;
+
         return (
           <div className="mt-8 rounded-2xl border border-[#E8DED5] bg-white p-6 shadow-sm">
             <div className="flex items-center justify-between flex-wrap gap-2 mb-4">
@@ -277,10 +355,35 @@ export default function ArtisanProfilePage() {
                   Physical Address Verification (QoreID)
                 </h4>
               </div>
-              <span className={`rounded-full border px-2.5 py-1 text-xs font-bold ${statusCfg.cls}`}>
-                {statusCfg.label}
-              </span>
+              <div className="flex items-center gap-2">
+                {canResync && (
+                  <button
+                    type="button"
+                    onClick={handleResync}
+                    disabled={resyncing}
+                    className="flex items-center gap-1.5 rounded-full border border-leather/30 bg-atmosphere px-3 py-1 text-xs font-bold text-leather hover:bg-leather/10 disabled:opacity-50"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${resyncing ? "animate-spin" : ""}`} />
+                    {resyncing ? "Checking..." : "Check Verification"}
+                  </button>
+                )}
+                <span className={`rounded-full border px-2.5 py-1 text-xs font-bold ${statusCfg.cls}`}>
+                  {statusCfg.label}
+                </span>
+              </div>
             </div>
+
+            {resyncMsg && (
+              <div
+                className={`mb-4 rounded-lg px-3 py-2 text-xs font-medium ${
+                  resyncMsg.isError
+                    ? "bg-red-50 text-red-700 border border-red-200"
+                    : "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                }`}
+              >
+                {resyncMsg.text}
+              </div>
+            )}
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
               <div>
@@ -319,6 +422,82 @@ export default function ArtisanProfilePage() {
                   <p className="text-[11px] uppercase tracking-wider font-bold text-[#A39289]">Verified</p>
                   <p className="text-ink font-medium mt-0.5">{addr.verifiedAt ? formatDate(addr.verifiedAt) : "—"}</p>
                 </div>
+              </div>
+            )}
+
+            {hasReportFields && (
+              <div className="mt-5 pt-4 border-t border-[#E8DED5]">
+                <p className="text-[11px] uppercase tracking-wider font-bold text-[#A39289] mb-3">
+                  QoreID Agent Report
+                </p>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm mb-4">
+                  <div>
+                    <p className="text-[11px] uppercase tracking-wider font-bold text-[#A39289]">Status</p>
+                    <p className="text-ink font-medium mt-0.5">{reportStatus || "—"}</p>
+                  </div>
+                  <div>
+                    <p className="text-[11px] uppercase tracking-wider font-bold text-[#A39289]">Approved At</p>
+                    <p className="text-ink font-medium mt-0.5">{reportApproved ? formatDate(reportApproved) : "—"}</p>
+                  </div>
+                  <div>
+                    <p className="text-[11px] uppercase tracking-wider font-bold text-[#A39289]">Phone Number</p>
+                    <p className="text-ink font-medium mt-0.5">{reportPhone || "—"}</p>
+                  </div>
+                  <div>
+                    <p className="text-[11px] uppercase tracking-wider font-bold text-[#A39289]">Street (confirmed)</p>
+                    <p className="text-ink font-medium mt-0.5">{reportStreet || "—"}</p>
+                  </div>
+                  <div>
+                    <p className="text-[11px] uppercase tracking-wider font-bold text-[#A39289]">Landmark (confirmed)</p>
+                    <p className="text-ink font-medium mt-0.5">{reportLandmark || "—"}</p>
+                  </div>
+                  <div>
+                    <p className="text-[11px] uppercase tracking-wider font-bold text-[#A39289]">Building Type</p>
+                    <p className="text-ink font-medium mt-0.5">{reportBuildingType || "—"}</p>
+                  </div>
+                  <div>
+                    <p className="text-[11px] uppercase tracking-wider font-bold text-[#A39289]">Building Status</p>
+                    <p className="text-ink font-medium mt-0.5">{reportBuildingStatus || "—"}</p>
+                  </div>
+                  <div>
+                    <p className="text-[11px] uppercase tracking-wider font-bold text-[#A39289]">Building Purpose</p>
+                    <p className="text-ink font-medium mt-0.5">{reportBuildingPurpose || "—"}</p>
+                  </div>
+                </div>
+
+                {reportAgentComment && (
+                  <div className="mb-4">
+                    <p className="text-[11px] uppercase tracking-wider font-bold text-[#A39289] mb-1">Agent&apos;s Comment</p>
+                    <p className="text-ink text-sm bg-atmosphere/50 rounded-lg p-3 leading-relaxed">{reportAgentComment}</p>
+                  </div>
+                )}
+
+                {photos.length > 0 && (
+                  <div className="mb-4">
+                    <p className="text-[11px] uppercase tracking-wider font-bold text-[#A39289] mb-2">Photos</p>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                      {photos.map((url, i) => (
+                        <a key={i} href={url} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-xl border border-[#E8DED5]">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={url} alt={`Agent visit photo ${i + 1}`} className="h-28 w-full object-cover hover:scale-105 transition-transform" />
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {coordinates && (
+                  <div>
+                    <p className="text-[11px] uppercase tracking-wider font-bold text-[#A39289] mb-2">
+                      Address Coordinates — {coordinates.lat.toFixed(6)}, {coordinates.lng.toFixed(6)}
+                    </p>
+                    <iframe
+                      title="Verified address location"
+                      className="w-full h-64 rounded-xl border border-[#E8DED5]"
+                      src={osmEmbedUrl(coordinates)}
+                    />
+                  </div>
+                )}
               </div>
             )}
 

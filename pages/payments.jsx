@@ -6,9 +6,9 @@ import Spinner from '@/components/ui/Spinner';
 import AdminRoute from '@/components/auth/AdminRoute';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { getCommissionSettings } from '@/services/commissionService';
-import { getPayments, markInvoicePaid, releaseStage, getSamplePayments, generateInvoice, getVatSummary, getFIRSRemittances, createFIRSRemittance, getAdminEarnings, createAdminPayout } from '@/services/paymentsService';
+import { getPayments, markInvoicePaid, releaseStage, getSamplePayments, generateInvoice, getVatSummary, getFIRSRemittances, createFIRSRemittance, getAdminEarnings, createAdminPayout, getArtisanPayoutHistory, resyncPayment } from '@/services/paymentsService';
 import { getAllJobsFromOrders, releaseSamplePayment } from '@/services/jobsService';
-import { FileText, Landmark, RefreshCw, CheckCircle2, Clock, Plus, ArrowDownToLine, AlertCircle, Loader2, Building2, TrendingUp } from 'lucide-react';
+import { FileText, Landmark, RefreshCw, CheckCircle2, Clock, Plus, ArrowDownToLine, AlertCircle, Loader2, Building2, TrendingUp, ShieldCheck } from 'lucide-react';
 
 // Naira icon — inline SVG component to replace lucide's NairaIcon
 const NairaIcon = ({ className = "h-4 w-4" }) => (
@@ -19,6 +19,13 @@ const NairaIcon = ({ className = "h-4 w-4" }) => (
     <path d="M18 4 L6 20" />
   </svg>
 );
+
+const STAGE_SHORT_MAP = {
+  SAMPLE_FLAT_FEE: 'Sample (70%)',
+  MATERIAL:        'Stage 1',
+  SERVICE:         'Stage 2',
+  FULL_PAYMENT:    'Full',
+};
 
 export default function PaymentsPage() {
   const [activeTab, setActiveTab]     = useState('production');
@@ -55,6 +62,11 @@ export default function PaymentsPage() {
   const [withdrawError, setWithdrawError]       = useState('');
   const [withdrawSuccess, setWithdrawSuccess]   = useState('');
 
+  // Artisan payments stuck awaiting webhook confirmation (PENDING/OTP_PENDING) —
+  // re-checked directly against Paystack via the "Verify Payment" action.
+  const [pendingPayments, setPendingPayments]   = useState([]);
+  const [resyncingId, setResyncingId]           = useState(null);
+
   const showToast = (msg, isError = false) => {
     setToast({ msg, isError });
     setTimeout(() => setToast({ msg: '', isError: false }), 3000);
@@ -63,7 +75,7 @@ export default function PaymentsPage() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [paymentsData, settingsData, sampleData, allJobs, vatResult, remittances, earnings] = await Promise.all([
+      const [paymentsData, settingsData, sampleData, allJobs, vatResult, remittances, earnings, artisanHistory] = await Promise.all([
         getPayments(),
         getCommissionSettings(),
         getSamplePayments(),
@@ -71,6 +83,7 @@ export default function PaymentsPage() {
         getVatSummary(),
         getFIRSRemittances(),
         getAdminEarnings(),
+        getArtisanPayoutHistory(),
       ]);
       setPayments(paymentsData);
       setSettings(settingsData);
@@ -78,6 +91,7 @@ export default function PaymentsPage() {
       setVatData(vatResult);
       setFirsRemittances(remittances);
       setAdminEarnings(earnings);
+      setPendingPayments(artisanHistory.filter((p) => ['PENDING', 'OTP_PENDING'].includes(p.status)));
       setPendingSampleJobs(
         allJobs.filter((j) => j.type === 'SAMPLE' && ['IN_PROGRESS', 'VIDEO_UPLOADED', 'SAMPLE_APPROVED', 'COMPLETED'].includes(j.status) && !j.samplePaymentReleased)
       );
@@ -334,6 +348,19 @@ export default function PaymentsPage() {
     }
   };
 
+  const handleResyncPayment = async (paymentId) => {
+    setResyncingId(paymentId);
+    try {
+      const res = await resyncPayment(paymentId);
+      showToast(res.message, !res.success);
+      await loadData();
+    } catch (err) {
+      showToast(err.response?.data?.message || 'Failed to verify payment with Paystack.', true);
+    } finally {
+      setResyncingId(null);
+    }
+  };
+
   const handleMarkPaid = async (invoiceId) => {
     try {
       await markInvoicePaid(invoiceId);
@@ -357,6 +384,65 @@ export default function PaymentsPage() {
           }`}>
             <span className="text-base">{toast.isError ? '✕' : '✓'}</span>
             {toast.msg}
+          </div>
+        )}
+
+        {/* ── Pending Payment Verification ── */}
+        {/* Payments stuck at PENDING/OTP_PENDING because their Paystack webhook never
+            arrived (e.g. a signature-secret mismatch) even though Paystack may have
+            already resolved the transfer. "Verify Payment" re-checks directly against
+            Paystack's Verify Transfer endpoint and applies the outcome if conclusive. */}
+        {pendingPayments.length > 0 && (
+          <div className="mb-6 overflow-hidden rounded-3xl border border-blue-200 bg-white shadow-xl">
+            <div className="flex items-center gap-2 border-b border-blue-100 bg-blue-50/60 px-5 py-3">
+              <ShieldCheck className="h-4 w-4 text-blue-600" />
+              <p className="text-xs font-bold uppercase tracking-wider text-blue-700">
+                Pending Payment Verification ({pendingPayments.length})
+              </p>
+              <p className="ml-2 text-[11px] text-blue-500">
+                Awaiting Paystack webhook confirmation — verify directly if a transfer has already gone through.
+              </p>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-blue-50 bg-blue-50/30">
+                    {['Order', 'Artisan', 'Stage', 'Amount', 'Status', 'Action'].map((h) => (
+                      <th key={h} className="px-4 py-3 text-left text-xs font-black uppercase tracking-wider text-blue-700 whitespace-nowrap">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-blue-50">
+                  {pendingPayments.map((p) => (
+                    <tr key={p.id} className="hover:bg-blue-50/20 transition-colors">
+                      <td className="px-4 py-3">
+                        <p className="font-mono text-xs font-bold text-leather">{p.orderRef}</p>
+                      </td>
+                      <td className="px-4 py-3 font-semibold text-ink">{p.artisanName}</td>
+                      <td className="px-4 py-3 text-xs text-[#5A4A44]">{STAGE_SHORT_MAP[p.stage] || p.stage}</td>
+                      <td className="px-4 py-3 font-bold text-ink whitespace-nowrap">{formatCurrency(p.amount)}</td>
+                      <td className="px-4 py-3">
+                        <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-bold whitespace-nowrap ${
+                          p.status === 'OTP_PENDING' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'
+                        }`}>
+                          {p.status === 'OTP_PENDING' ? 'OTP Pending' : 'Pending'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <button
+                          onClick={() => handleResyncPayment(p.id)}
+                          disabled={resyncingId === p.id}
+                          className="flex items-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-100 disabled:opacity-50 transition-colors whitespace-nowrap"
+                        >
+                          <ShieldCheck className={`h-3.5 w-3.5 ${resyncingId === p.id ? 'animate-pulse' : ''}`} />
+                          {resyncingId === p.id ? 'Checking…' : 'Verify Payment'}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
 

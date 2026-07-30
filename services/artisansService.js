@@ -78,3 +78,10 @@ export async function rejectArtisan(id) {
   const res = await apiClient.patch(`/admin/reject/${id}`, {});
   return res.data;
 }
+
+// Manual fallback for an address check stuck at IN_PROGRESS — pulls the current
+// result straight from QoreID instead of waiting on a webhook that may never arrive.
+export async function resyncAddressVerification(artisanId) {
+  const res = await apiClient.post(`/admin/artisans/${artisanId}/address/resync`, {});
+  return res.data;
+}
