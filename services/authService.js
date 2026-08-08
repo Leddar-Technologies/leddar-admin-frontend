@@ -1,7 +1,7 @@
 // leddar-admin-frontend/services/authService.js
 
 const ADMIN_SESSION_KEY   = "leddar_admin_session";
-const API_URL             = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api/v1";
+const API_URL             = process.env.NEXT_PUBLIC_API_URL || "https://api.myleddar.com/api/v1";
 
 // ---------------------------------------------------------------------------
 // Login — stores BOTH access token and refresh token

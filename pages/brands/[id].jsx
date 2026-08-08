@@ -113,7 +113,9 @@ export default function BrandProfilePage() {
     {
       label: "Total Spent",
       value: formatCurrency(
-        brand.payments?.reduce((acc, curr) => acc + (curr.amount || 0), 0),
+        brand.payments
+          ?.filter((p) => ["RECEIVED", "HELD_IN_ESCROW", "RELEASED"].includes(p.status))
+          .reduce((acc, curr) => acc + (curr.amount || 0), 0) || 0,
       ),
       icon: CreditCard,
       color: "text-emerald-600",

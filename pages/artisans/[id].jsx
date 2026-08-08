@@ -157,8 +157,9 @@ export default function ArtisanProfilePage() {
     {
       label: "Total Earnings",
       value: formatCurrency(
-        artisan.payments?.reduce((acc, curr) => acc + (curr.amount || 0), 0) ||
-          0,
+        artisan.payments
+          ?.filter((p) => p.status === "RELEASED")
+          .reduce((acc, curr) => acc + (curr.amount || 0), 0) || 0,
       ),
       icon: CreditCard,
       color: "text-emerald-600",
@@ -668,7 +669,9 @@ export default function ArtisanProfilePage() {
                   <td className="px-6 py-4">
                     <Badge
                       variant={
-                        payment.status === "RECEIVED" ? "success" : "warning"
+                        payment.status === "RELEASED" ? "success"
+                        : payment.status === "FAILED"  ? "error"
+                        : "warning"
                       }
                     >
                       {payment.status}
