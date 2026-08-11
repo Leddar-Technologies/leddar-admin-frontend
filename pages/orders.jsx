@@ -6,7 +6,7 @@ import Button from '@/components/ui/Button';
 import Badge from '@/components/ui/Badge';
 import Spinner from '@/components/ui/Spinner';
 import AdminRoute from '@/components/auth/AdminRoute';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, getErrorMessage } from '@/lib/utils';
 import {
   getOrders, setProductionPricing,
 } from '@/services/ordersService';
@@ -88,7 +88,7 @@ export default function OrdersPage() {
       await loadOrders();
       showToast('Production pricing set. Brand will be notified to pay the balance.');
     } catch (err) {
-      setPricingError(err.response?.data?.message || 'Failed to set pricing.');
+      setPricingError(getErrorMessage(err, 'Failed to set pricing.'));
     } finally {
       setActionLoading(false);
     }

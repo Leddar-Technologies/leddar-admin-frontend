@@ -6,7 +6,7 @@ import PageWrapper from "@/components/layout/PageWrapper";
 import Badge from "@/components/ui/Badge";
 import Table from "@/components/ui/Table";
 import Spinner from "@/components/ui/Spinner";
-import { formatCurrency, formatDate } from "@/lib/utils";
+import { formatCurrency, formatDate, getErrorMessage } from "@/lib/utils";
 import {
   getArtisanById,
   approveArtisan,
@@ -104,7 +104,7 @@ export default function ArtisanProfilePage() {
       setResyncMsg({ text: res.message, isError: !res.success });
       await loadData(id);
     } catch (err) {
-      setResyncMsg({ text: err.response?.data?.message || err.message, isError: true });
+      setResyncMsg({ text: getErrorMessage(err), isError: true });
     } finally {
       setResyncing(false);
       setTimeout(() => setResyncMsg(null), 6000);

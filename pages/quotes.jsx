@@ -7,7 +7,7 @@ import Table from '@/components/ui/Table';
 import Spinner from '@/components/ui/Spinner';
 import QuoteRow from '@/components/admin/QuoteRow';
 import AdminRoute from '@/components/auth/AdminRoute';
-import { formatCurrency, formatDate } from '@/lib/utils';
+import { formatCurrency, formatDate, getErrorMessage } from '@/lib/utils';
 import { getQuotes, respondToQuote, updateQuoteStatus, getPresignedUrl } from '@/services/quotesService';
 import { getCommissionSettings } from '@/services/commissionService';
 import { AlertCircle, RefreshCw, FileText, Image, Film, ExternalLink, Eye } from 'lucide-react';
@@ -96,7 +96,7 @@ export default function QuotesPage() {
       await loadData();
       showToast('✓ Quote sent to brand. Status is now Under Review.');
     } catch (err) {
-      setRespondError(err.response?.data?.message || err.message || 'Failed to send quote.');
+      setRespondError(getErrorMessage(err, 'Failed to send quote.'));
     } finally {
       setActionLoading(false);
     }
@@ -133,7 +133,7 @@ export default function QuotesPage() {
       await loadData();
       showToast(`✓ Quote ${reviewModal.action === 'APPROVED' ? 'approved' : 'rejected'}.`);
     } catch (err) {
-      showToast('✗ ' + (err.response?.data?.message || 'Failed to update status.'), true);
+      showToast('✗ ' + getErrorMessage(err, 'Failed to update status.'), true);
     } finally {
       setActionLoading(false);
     }

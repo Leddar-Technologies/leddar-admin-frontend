@@ -3,6 +3,7 @@ import PageWrapper from '@/components/layout/PageWrapper';
 import AdminRoute from '@/components/auth/AdminRoute';
 import Modal from '@/components/ui/Modal';
 import apiClient from '@/services/apiClient';
+import { getErrorMessage } from '@/lib/utils';
 import {
   Save, Loader2, CheckCircle2, AlertCircle, ShieldCheck,
   Landmark, Info, User, Lock, Building2,
@@ -137,7 +138,7 @@ export default function ProfilePage() {
       setBankForm((p) => ({ ...p, accountName: name }));
       setVerifyState('verified');
     } catch (err) {
-      setVerifyError(err.response?.data?.message || 'Account not found. Check the number and bank.');
+      setVerifyError(getErrorMessage(err, 'Account not found. Check the number and bank.'));
       setVerifyState('error');
     }
   };
@@ -174,7 +175,7 @@ export default function ProfilePage() {
         show(res.data.message || 'Bank details saved successfully.');
       }
     } catch (err) {
-      show(err.response?.data?.message || 'Failed to save bank details.', true);
+      show(getErrorMessage(err, 'Failed to save bank details.'), true);
     } finally {
       setSavingBank(false);
     }
@@ -197,7 +198,7 @@ export default function ProfilePage() {
       setBankOtpModal({ open: false, otp: '', error: '' });
       show(res.data.message || 'Bank details saved successfully.');
     } catch (err) {
-      setBankOtpModal((p) => ({ ...p, error: err.response?.data?.message || 'Incorrect OTP.' }));
+      setBankOtpModal((p) => ({ ...p, error: getErrorMessage(err, 'Incorrect OTP.') }));
     } finally {
       setSavingBank(false);
     }

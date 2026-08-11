@@ -8,6 +8,7 @@ import {
   VAT_RATE,
 } from '@/services/commissionService';
 import { toast } from 'react-hot-toast';
+import { getErrorMessage } from '@/lib/utils';
 import { Save, RefreshCw, FlaskConical, Package, Info, CheckCircle2, AlertCircle, Clock, Loader2 } from 'lucide-react';
 
 const fmt = (n) => `₦${Number(n).toLocaleString('en-NG')}`;
@@ -196,7 +197,7 @@ export default function CommissionSettingsPage() {
         toast.success(result.message || 'Commission settings saved');
       }
     } catch (err) {
-      toast.error(err?.response?.data?.message || 'Failed to save');
+      toast.error(getErrorMessage(err, 'Failed to save'));
     } finally {
       setSaving(false);
     }
@@ -232,7 +233,7 @@ export default function CommissionSettingsPage() {
         toast.success(result.message || 'Commission settings saved');
       }
     } catch (err) {
-      setOtpModal((p) => ({ ...p, error: err?.response?.data?.message || 'Incorrect OTP.' }));
+      setOtpModal((p) => ({ ...p, error: getErrorMessage(err, 'Incorrect OTP.') }));
     } finally {
       setSaving(false);
     }
@@ -258,7 +259,7 @@ export default function CommissionSettingsPage() {
         toast.success(result.message || 'Sample prices updated');
       }
     } catch (err) {
-      toast.error(err?.response?.data?.message || 'Failed to save pricing');
+      toast.error(getErrorMessage(err, 'Failed to save pricing'));
     } finally {
       setSavingPricing(false);
     }

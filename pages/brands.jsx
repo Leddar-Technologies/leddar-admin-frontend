@@ -8,6 +8,7 @@ import Spinner from "@/components/ui/Spinner";
 import FilterDropdown from "@/components/ui/FilterDropdown";
 import AdminRoute from "../components/auth/AdminRoute";
 import { getBrands, approveUser, rejectUser } from "@/services/brandsService";
+import { getErrorMessage } from "@/lib/utils";
 import { Users, ShieldCheck, Clock, UserX, Search, FileSearch } from "lucide-react";
 
 const tabs = [
@@ -98,7 +99,7 @@ export default function BrandsPage() {
       await loadBrands();
     } catch (err) {
       console.error("Action failed:", err);
-      setActionError(err.response?.data?.message || "Action failed. Please try again.");
+      setActionError(getErrorMessage(err, "Action failed. Please try again."));
     } finally {
       setActionLoading(false);
     }

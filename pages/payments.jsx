@@ -4,7 +4,7 @@ import Modal from '@/components/ui/Modal';
 import Badge from '@/components/ui/Badge';
 import Spinner from '@/components/ui/Spinner';
 import AdminRoute from '@/components/auth/AdminRoute';
-import { formatCurrency, formatDate } from '@/lib/utils';
+import { formatCurrency, formatDate, getErrorMessage } from '@/lib/utils';
 import { getCommissionSettings } from '@/services/commissionService';
 import { getPayments, markInvoicePaid, releaseStage, getSamplePayments, generateInvoice, getVatSummary, getFIRSRemittances, createFIRSRemittance, getAdminEarnings, createAdminPayout, getArtisanPayoutHistory, resyncPayment } from '@/services/paymentsService';
 import { getAllJobsFromOrders, releaseSamplePayment } from '@/services/jobsService';
@@ -196,7 +196,7 @@ export default function PaymentsPage() {
         showToast(`Stage ${confirmModal.stage} payment submitted for transfer. You'll be notified once Paystack confirms it.`);
       }
     } catch (err) {
-      showToast(err.response?.data?.message || 'Release failed.', true);
+      showToast(getErrorMessage(err, 'Release failed.'), true);
     } finally {
       setActionLoading(false);
     }
@@ -221,7 +221,7 @@ export default function PaymentsPage() {
       await loadData();
       showToast(result.message || `Stage ${stage} payment confirmed.`);
     } catch (err) {
-      setConfirmModal((p) => ({ ...p, otpError: err?.response?.data?.message || 'Incorrect OTP. Please try again.' }));
+      setConfirmModal((p) => ({ ...p, otpError: getErrorMessage(err, 'Incorrect OTP. Please try again.') }));
     } finally {
       setActionLoading(false);
     }
@@ -251,7 +251,7 @@ export default function PaymentsPage() {
       await loadData();
       showToast(`✓ ₦${releasedAmt.toLocaleString('en-NG')} submitted for transfer to ${sampleReleaseModal.artisan} via Paystack`);
     } catch (err) {
-      const msg = err.response?.data?.message || '';
+      const msg = getErrorMessage(err, '');
       const isAlreadyReleased = msg.toLowerCase().includes('already released');
       if (isAlreadyReleased) {
         setSampleAlreadyReleased(true);
@@ -285,7 +285,7 @@ export default function PaymentsPage() {
       await loadData();
       showToast(result.message || 'Sample payment confirmed.');
     } catch (err) {
-      setSampleReleaseModal((p) => ({ ...p, otpError: err?.response?.data?.message || 'Incorrect OTP. Please try again.' }));
+      setSampleReleaseModal((p) => ({ ...p, otpError: getErrorMessage(err, 'Incorrect OTP. Please try again.') }));
     } finally {
       setActionLoading(false);
     }
@@ -313,7 +313,7 @@ export default function PaymentsPage() {
         setWithdrawError(result.message || 'Withdrawal failed.');
       }
     } catch (err) {
-      setWithdrawError(err?.response?.data?.message || 'Failed to initiate withdrawal.');
+      setWithdrawError(getErrorMessage(err, 'Failed to initiate withdrawal.'));
     } finally {
       setWithdrawLoading(false);
     }
@@ -342,7 +342,7 @@ export default function PaymentsPage() {
         setWithdrawError(result.message || 'OTP verification failed.');
       }
     } catch (err) {
-      setWithdrawError(err?.response?.data?.message || 'Incorrect OTP. Please try again.');
+      setWithdrawError(getErrorMessage(err, 'Incorrect OTP. Please try again.'));
     } finally {
       setWithdrawLoading(false);
     }
@@ -355,7 +355,7 @@ export default function PaymentsPage() {
       showToast(res.message, !res.success);
       await loadData();
     } catch (err) {
-      showToast(err.response?.data?.message || 'Failed to verify payment with Paystack.', true);
+      showToast(getErrorMessage(err, 'Failed to verify payment with Paystack.'), true);
     } finally {
       setResyncingId(null);
     }
@@ -367,7 +367,7 @@ export default function PaymentsPage() {
       await loadData();
       showToast('Invoice marked as paid. Order closed.');
     } catch (err) {
-      showToast(err.response?.data?.message || 'Failed to mark invoice paid.', true);
+      showToast(getErrorMessage(err, 'Failed to mark invoice paid.'), true);
     }
   };
 
@@ -968,7 +968,7 @@ export default function PaymentsPage() {
                 setFirsModal({ open: false, amount: '', note: '' });
                 showToast('FIRS remittance recorded successfully.');
               } catch (err) {
-                showToast(err?.response?.data?.message || 'Failed to record remittance.', true);
+                showToast(getErrorMessage(err, 'Failed to record remittance.'), true);
               } finally {
                 setFirsLoading(false);
               }

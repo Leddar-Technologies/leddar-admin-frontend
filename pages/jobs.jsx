@@ -26,7 +26,7 @@ import {
   Eye, ChevronRight, User, Layers, EyeOff,
   Truck, Send, X,
 } from "lucide-react";
-import { formatDate } from "@/lib/utils";
+import { formatDate, getErrorMessage } from "@/lib/utils";
 
 // ─── Pipeline steps ────────────────────────────────────────────────────────
 
@@ -166,7 +166,7 @@ function JobPanel({ job, onActionDone }) {
       await approveVideo(job.id);
       setAdminVideoStatus("APPROVED");
       onActionDone("Video approved and sent to brand ✓");
-    } catch (e) { setActionError(e?.response?.data?.message || e.message); }
+    } catch (e) { setActionError(getErrorMessage(e)); }
     finally { setActionLoading(false); }
   }
 
@@ -180,28 +180,28 @@ function JobPanel({ job, onActionDone }) {
       setRejectModalOpen(false);
       setRejectNote("");
       onActionDone("Video rejected — artisan notified ✓");
-    } catch (e) { setActionError(e?.response?.data?.message || e.message); }
+    } catch (e) { setActionError(getErrorMessage(e)); }
     finally { setRejectLoading(false); }
   }
 
   async function handleCompleteSample() {
     setActionLoading(true); setActionError("");
     try { await completeSample(job.id); onActionDone("Sample marked as completed ✓"); }
-    catch (e) { setActionError(e?.response?.data?.message || e.message); }
+    catch (e) { setActionError(getErrorMessage(e)); }
     finally { setActionLoading(false); }
   }
 
   async function handleDispatch() {
     setActionLoading(true); setActionError("");
     try { await dispatchProduction(job.id); onActionDone("Production marked as dispatched ✓"); }
-    catch (e) { setActionError(e?.response?.data?.message || e.message); }
+    catch (e) { setActionError(getErrorMessage(e)); }
     finally { setActionLoading(false); }
   }
 
   async function handleConfirmDelivery() {
     setActionLoading(true); setActionError("");
     try { await confirmDelivery(job.id); onActionDone("Delivery confirmed ✓ — order marked as delivered"); }
-    catch (e) { setActionError(e?.response?.data?.message || e.message); }
+    catch (e) { setActionError(getErrorMessage(e)); }
     finally { setActionLoading(false); }
   }
 
@@ -667,7 +667,7 @@ export default function JobsPage() {
       await loadAll();
       showToast("✓ Job assigned to artisan successfully.");
     } catch (err) {
-      setAssignError(err.response?.data?.message || err.message || "Failed to assign job.");
+      setAssignError(getErrorMessage(err, "Failed to assign job."));
     } finally {
       setActionLoading(false);
     }

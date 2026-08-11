@@ -13,6 +13,7 @@ import {
 } from "@/services/artisansService";
 import { Users, ShieldCheck, Clock, UserX, Search, FileSearch } from "lucide-react";
 import { toast } from "react-hot-toast";
+import { getErrorMessage } from "@/lib/utils";
 
 const tabs = [
   { id: "All",              label: "All Artisans", icon: Users },
@@ -105,7 +106,7 @@ export default function ArtisansPage() {
       await loadArtisans();
     } catch (err) {
       console.error("Action failed:", err);
-      const message = err.response?.data?.message || "Operation failed. Please try again.";
+      const message = getErrorMessage(err, "Operation failed. Please try again.");
       setActionError(message);
       toast.error(message);
     } finally {
