@@ -74,7 +74,8 @@ const ORDER_STATUS_LABEL = {
 };
 
 const tabs = [
-  { id: "pending", label: "Needs Assignment", icon: ClipboardList },
+  { id: "all",     label: "All Jobs",          icon: Layers },
+  { id: "pending", label: "Needs Assignment",  icon: ClipboardList },
   { id: "active",  label: "Active Jobs",       icon: Users },
   { id: "review",  label: "Sample Ready",      icon: Video },
 ];
@@ -343,16 +344,6 @@ function JobPanel({ job, onActionDone }) {
                     Reject with Reason
                   </button>
                 </div>
-              )}
-              {adminVideoStatus === "APPROVED" && job.type === "SAMPLE" && !["SAMPLE_APPROVED", "COMPLETED"].includes(job.status) && (
-                <button
-                  onClick={() => setRejectModalOpen(true)}
-                  disabled={actionLoading}
-                  className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-100 disabled:opacity-60 transition-colors"
-                >
-                  <X className="h-4 w-4" />
-                  {job.type === "PRODUCTION" ? "Reject (Request Re-upload)" : "Reject (Recall from Brand)"}
-                </button>
               )}
             </>
           ) : (
@@ -687,26 +678,53 @@ export default function JobsPage() {
     ...pendingProduction.map((o) => ({ ...o, _assignType: "PRODUCTION" })),
   ], [pendingSample, pendingProduction]);
 
+  // Shared search/type predicate — reused across all three tabs so the filter bar
+  // works no matter which tab is open, not just Active Jobs.
+  const matchesSearch = (hayFields) => {
+    if (!filterSearch) return true;
+    const q = filterSearch.toLowerCase();
+    return hayFields.some((f) => f?.toLowerCase().includes(q));
+  };
+
+  // Pending assignment orders have no job status yet, so only search + type apply.
+  const filteredPendingAll = useMemo(() => pendingAll.filter((order) => {
+    if (filterJobType && order._assignType !== filterJobType) return false;
+    return matchesSearch([
+      order.ref,
+      order.brand?.businessName,
+      order.quote?.productType?.[0],
+      order.quote?.ref,
+    ]);
+  }), [pendingAll, filterJobType, filterSearch]);
+
   const filteredJobs = useMemo(() => activeJobs.filter((j) => {
+    // By default, hide finished jobs (matches the "Active Jobs" badge count) —
+    // an explicit status filter (e.g. "Completed") overrides this.
+    if (!filterJobStatus && ["COMPLETED", "DECLINED", "DELIVERED"].includes(j.status)) return false;
     if (filterJobType   && j.type !== filterJobType) return false;
     if (filterJobStatus && j.status !== filterJobStatus) return false;
-    if (filterSearch) {
-      const q = filterSearch.toLowerCase();
-      if (
-        !j.brandName?.toLowerCase().includes(q) &&
-        !j.artisanName?.toLowerCase().includes(q) &&
-        !j.orderRef?.toLowerCase().includes(q) &&
-        !j.quoteRef?.toLowerCase().includes(q) &&
-        !j.productType?.toLowerCase().includes(q)
-      ) return false;
-    }
-    return true;
+    return matchesSearch([j.brandName, j.artisanName, j.orderRef, j.quoteRef, j.productType]);
   }), [activeJobs, filterJobType, filterJobStatus, filterSearch]);
 
-  // Group filtered jobs by orderRef so SAMPLE + PRODUCTION from the same order merge into one row
-  const groupedJobs = useMemo(() => {
+  // Sample Ready — jobs awaiting admin video review.
+  const filteredVideoJobs = useMemo(() => activeJobs.filter((j) => {
+    if (!["VIDEO_UPLOADED", "CORRECTION_REQUESTED", "SAMPLE_APPROVED"].includes(j.status)) return false;
+    if (filterJobType   && j.type !== filterJobType) return false;
+    if (filterJobStatus && j.status !== filterJobStatus) return false;
+    return matchesSearch([j.brandName, j.artisanName, j.orderRef, j.quoteRef, j.productType]);
+  }), [activeJobs, filterJobType, filterJobStatus, filterSearch]);
+
+  // "All Jobs" tab — every job at every stage (including completed/declined),
+  // so search isn't scoped to a single category.
+  const filteredEveryJob = useMemo(() => activeJobs.filter((j) => {
+    if (filterJobType   && j.type !== filterJobType) return false;
+    if (filterJobStatus && j.status !== filterJobStatus) return false;
+    return matchesSearch([j.brandName, j.artisanName, j.orderRef, j.quoteRef, j.productType]);
+  }), [activeJobs, filterJobType, filterJobStatus, filterSearch]);
+
+  const groupJobsByOrder = (list) => {
     const map = new Map();
-    filteredJobs.forEach((job) => {
+    list.forEach((job) => {
       const key = job.orderRef || job.id;
       if (!map.has(key)) map.set(key, []);
       map.get(key).push(job);
@@ -714,7 +732,11 @@ export default function JobsPage() {
     return Array.from(map.values()).map((group) =>
       group.sort((a, b) => (a.type === "SAMPLE" ? -1 : 1))
     );
-  }, [filteredJobs]);
+  };
+
+  // Group filtered jobs by orderRef so SAMPLE + PRODUCTION from the same order merge into one row
+  const groupedJobs    = useMemo(() => groupJobsByOrder(filteredJobs),     [filteredJobs]);
+  const groupedAllJobs = useMemo(() => groupJobsByOrder(filteredEveryJob), [filteredEveryJob]);
 
   const filteredArtisans = useMemo(() => {
     const filtered = availableArtisans.filter((a) => {
@@ -755,7 +777,7 @@ export default function JobsPage() {
         <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
           {[
             { label: "Needs Assignment", value: pendingAll.length,          color: "text-amber-600",   bg: "bg-amber-50"   },
-            { label: "Active Jobs",      value: activeJobs.filter(j => !["COMPLETED","DECLINED"].includes(j.status)).length, color: "text-blue-600", bg: "bg-blue-50" },
+            { label: "Active Jobs",      value: activeJobs.filter(j => !["COMPLETED","DECLINED","DELIVERED"].includes(j.status)).length, color: "text-blue-600", bg: "bg-blue-50" },
             { label: "Sample Ready",     value: sampleReadyOrders.length,   color: "text-leather",     bg: "bg-[#FFF8EA]"  },
             { label: "Completed",        value: activeJobs.filter(j => j.status === "COMPLETED").length, color: "text-emerald-600", bg: "bg-emerald-50" },
           ].map((c) => (
@@ -775,9 +797,10 @@ export default function JobsPage() {
               const reviewCount = activeJobs.filter((j) =>
                 ["VIDEO_UPLOADED", "CORRECTION_REQUESTED", "SAMPLE_APPROVED"].includes(j.status)
               ).length;
-              const badge = tab.id === "pending" ? pendingAll.length
-                : tab.id === "review" ? reviewCount
-                : tab.id === "active" ? activeJobs.filter(j => !["COMPLETED","DECLINED"].includes(j.status)).length
+              const badge = tab.id === "all"     ? pendingAll.length + activeJobs.length
+                : tab.id === "pending" ? pendingAll.length
+                : tab.id === "review"  ? reviewCount
+                : tab.id === "active"  ? activeJobs.filter(j => !["COMPLETED","DECLINED","DELIVERED"].includes(j.status)).length
                 : null;
               return (
                 <button
@@ -815,14 +838,211 @@ export default function JobsPage() {
           </div>
         ) : (
           <>
+            {/* Filters — apply to whichever tab is active, not just Active Jobs */}
+            <div className="mb-4 flex flex-wrap gap-3 rounded-2xl border border-[#E8DED5] bg-white p-4 shadow-sm">
+              <div className="flex-1 min-w-[160px]">
+                <label className="block text-xs font-semibold uppercase text-[#A39289] mb-1">Search</label>
+                <input
+                  value={filterSearch}
+                  onChange={(e) => setFilterSearch(e.target.value)}
+                  placeholder="Brand, artisan, order ref, quote ref…"
+                  className="w-full rounded-xl border border-[#E8DED5] px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-leather/20 focus:border-leather"
+                />
+              </div>
+              <div className="min-w-[130px]">
+                <label className="block text-xs font-semibold uppercase text-[#A39289] mb-1">Job Type</label>
+                <select
+                  value={filterJobType}
+                  onChange={(e) => setFilterJobType(e.target.value)}
+                  className="w-full rounded-xl border border-[#E8DED5] px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-leather/20 focus:border-leather bg-white"
+                >
+                  <option value="">All Types</option>
+                  <option value="SAMPLE">Sample</option>
+                  <option value="PRODUCTION">Production</option>
+                </select>
+              </div>
+              {activeTab !== "pending" && (
+                <div className="min-w-[160px]">
+                  <label className="block text-xs font-semibold uppercase text-[#A39289] mb-1">Job Status</label>
+                  <select
+                    value={filterJobStatus}
+                    onChange={(e) => setFilterJobStatus(e.target.value)}
+                    className="w-full rounded-xl border border-[#E8DED5] px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-leather/20 focus:border-leather bg-white"
+                  >
+                    <option value="">All Statuses</option>
+                    <option value="ASSIGNED">Assigned</option>
+                    <option value="IN_PROGRESS">In Progress</option>
+                    <option value="VIDEO_UPLOADED">Video Uploaded</option>
+                    <option value="CORRECTION_REQUESTED">Correction Requested</option>
+                    <option value="SAMPLE_APPROVED">Sample Approved</option>
+                    <option value="PENDING_DELIVERY">Ready for Dispatch</option>
+                    <option value="DISPATCHED">Dispatched</option>
+                    <option value="DELIVERED">Delivered</option>
+                    <option value="COMPLETED">Completed</option>
+                    <option value="DECLINED">Declined</option>
+                  </select>
+                </div>
+              )}
+              {(filterSearch || filterJobType || filterJobStatus) && (
+                <div className="flex items-end">
+                  <button
+                    onClick={() => { setFilterSearch(""); setFilterJobType(""); setFilterJobStatus(""); }}
+                    className="rounded-xl border border-[#E8DED5] px-3 py-2 text-xs font-semibold text-[#A39289] hover:bg-atmosphere"
+                  >
+                    Clear
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* ── ALL JOBS ── */}
+            {activeTab === "all" && (
+              <div className="space-y-4">
+                {/* Orders still waiting for an artisan */}
+                {filteredPendingAll.length > 0 && (
+                  <div className="overflow-hidden rounded-3xl border border-[#E8DED5] bg-white shadow-xl">
+                    <div className="border-b border-[#F4EFEA] bg-atmosphere/40 px-4 py-3">
+                      <p className="text-xs font-black uppercase tracking-wider text-[#A39289]">
+                        Needs Assignment ({filteredPendingAll.length})
+                      </p>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b border-[#F4EFEA] bg-atmosphere/20">
+                            {["Order ID", "Brand", "Product", "Qty", "Timeline", "Date", "Action"].map((h) => (
+                              <th key={h} className="px-4 py-3 text-left text-xs font-black uppercase tracking-wider text-[#A39289]">{h}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-[#F4EFEA]">
+                          {filteredPendingAll.map((order) => (
+                            <tr key={order.id} className="hover:bg-atmosphere/20 transition-colors">
+                              <td className="px-4 py-3">
+                                <p className="font-mono text-xs font-bold text-leather">
+                                  {order.ref || `#${order.id.slice(0, 8).toUpperCase()}`}
+                                </p>
+                                <Badge variant={order._assignType === "SAMPLE" ? "warning" : "info"} className="mt-1">
+                                  {order._assignType}
+                                </Badge>
+                              </td>
+                              <td className="px-4 py-3 text-ink font-medium">{order.brand?.businessName || "—"}</td>
+                              <td className="px-4 py-3 text-[#5A4A44]">{order.quote?.productType?.[0] || "—"}</td>
+                              <td className="px-4 py-3 text-[#5A4A44]">{order.quote?.quantity || "—"}</td>
+                              <td className="px-4 py-3 text-xs text-[#5A4A44]">
+                                {order.quote?.timeline
+                                  ? (TIMELINE_LABEL[order.quote.timeline] || order.quote.timeline.replace(/_/g, " "))
+                                  : "—"}
+                              </td>
+                              <td className="px-4 py-3 text-[#A39289] text-xs">{formatDate(order.createdAt)}</td>
+                              <td className="px-4 py-3">
+                                <Button size="sm" variant="accent" onClick={() => openAssign(order, order._assignType)}>
+                                  Assign Artisan
+                                </Button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {/* Every job that has been assigned, at any stage */}
+                <div className="overflow-hidden rounded-3xl border border-[#E8DED5] bg-white shadow-xl">
+                  {groupedAllJobs.length === 0 ? (
+                    <div className="flex flex-col items-center gap-3 py-20 text-center">
+                      <Package className="h-12 w-12 text-[#D7CBC1]" />
+                      <p className="font-semibold text-ink">
+                        {activeJobs.length === 0 && filteredPendingAll.length === 0 ? "No jobs yet" : "No jobs match the filters"}
+                      </p>
+                      <p className="text-sm text-[#A39289]">
+                        {activeJobs.length === 0 && filteredPendingAll.length === 0
+                          ? "Jobs will appear here once orders are assigned to artisans."
+                          : "Try adjusting or clearing your filters."}
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b border-[#F4EFEA] bg-atmosphere/40">
+                            {["Order Ref", "Brand", "Product", "Artisan", "Deadline", "Pipeline", "Job Status", "Actions"].map((h) => (
+                              <th key={h} className="px-4 py-3 text-left text-xs font-black uppercase tracking-wider text-[#A39289]">{h}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-[#F4EFEA]">
+                          {groupedAllJobs.map((group) => {
+                            const displayJob = group.find((j) => j.type === "PRODUCTION") || group[0];
+                            return (
+                              <tr key={displayJob.orderRef || displayJob.id} className="hover:bg-atmosphere/20 transition-colors">
+                                <td className="px-4 py-3">
+                                  <p className="font-mono text-xs font-bold text-leather">{displayJob.orderRef}</p>
+                                  {displayJob.quoteRef && (
+                                    <p className="font-mono text-[10px] text-[#A39289] mt-0.5">[{displayJob.quoteRef}]</p>
+                                  )}
+                                  <Badge variant={displayJob.type === "SAMPLE" ? "warning" : "info"} className="mt-1">
+                                    {displayJob.type}
+                                  </Badge>
+                                </td>
+                                <td className="px-4 py-3 font-medium text-ink">{displayJob.brandName}</td>
+                                <td className="px-4 py-3 text-[#5A4A44] text-xs">{displayJob.productType}</td>
+                                <td className="px-4 py-3">
+                                  <p className="text-sm font-medium text-ink">{displayJob.artisanName}</p>
+                                  <p className="text-xs text-[#A39289] truncate max-w-[120px]">{displayJob.artisanEmail}</p>
+                                </td>
+                                <td className="px-4 py-3 text-xs text-[#A39289]">
+                                  {displayJob.deadline
+                                    ? formatDate(displayJob.deadline)
+                                    : displayJob.quoteTimeline
+                                      ? <span title="Brand's requested timeline">{TIMELINE_LABEL[displayJob.quoteTimeline] || displayJob.quoteTimeline}</span>
+                                      : "—"}
+                                </td>
+                                <td className="px-4 py-3">
+                                  <PipelineStepper type={displayJob.type} currentStatus={displayJob.status} />
+                                </td>
+                                <td className="px-4 py-3">
+                                  <Badge variant={STATUS_VARIANT[displayJob.status] || "default"}>
+                                    {displayJob.status?.replace(/_/g, " ")}
+                                  </Badge>
+                                </td>
+                                <td className="px-4 py-3">
+                                  <button
+                                    onClick={() => setViewJobs(group)}
+                                    className="flex items-center gap-1.5 rounded-xl border border-[#E8DED5] bg-white px-3 py-1.5 text-xs font-semibold text-[#6A5B54] hover:bg-atmosphere transition-colors"
+                                  >
+                                    <Eye className="h-3 w-3" /> View
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                      <div className="border-t border-[#F4EFEA] px-4 py-2 text-xs text-[#A39289]">
+                        Showing {groupedAllJobs.length} order{groupedAllJobs.length !== 1 ? "s" : ""} ({filteredEveryJob.length} jobs) of {activeJobs.length} total
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* ── PENDING ASSIGNMENT ── */}
             {activeTab === "pending" && (
               <div className="overflow-hidden rounded-3xl border border-[#E8DED5] bg-white shadow-xl">
-                {pendingAll.length === 0 ? (
+                {filteredPendingAll.length === 0 ? (
                   <div className="flex flex-col items-center gap-3 py-20 text-center">
                     <CheckCircle2 className="h-12 w-12 text-emerald-300" />
-                    <p className="font-semibold text-ink">All orders are assigned</p>
-                    <p className="text-sm text-[#A39289]">No orders are waiting for artisan assignment.</p>
+                    <p className="font-semibold text-ink">
+                      {pendingAll.length === 0 ? "All orders are assigned" : "No orders match the filters"}
+                    </p>
+                    <p className="text-sm text-[#A39289]">
+                      {pendingAll.length === 0
+                        ? "No orders are waiting for artisan assignment."
+                        : "Try adjusting or clearing your filters."}
+                    </p>
                   </div>
                 ) : (
                   <div className="overflow-x-auto">
@@ -835,7 +1055,7 @@ export default function JobsPage() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-[#F4EFEA]">
-                        {pendingAll.map((order) => (
+                        {filteredPendingAll.map((order) => (
                           <tr key={order.id} className="hover:bg-atmosphere/20 transition-colors">
                             <td className="px-4 py-3">
                               <p className="font-mono text-xs font-bold text-leather">
@@ -884,61 +1104,6 @@ export default function JobsPage() {
             {/* ── ACTIVE JOBS ── */}
             {activeTab === "active" && (
               <div className="space-y-4">
-                {/* Filters */}
-                <div className="flex flex-wrap gap-3 rounded-2xl border border-[#E8DED5] bg-white p-4 shadow-sm">
-                  <div className="flex-1 min-w-[160px]">
-                    <label className="block text-xs font-semibold uppercase text-[#A39289] mb-1">Search</label>
-                    <input
-                      value={filterSearch}
-                      onChange={(e) => setFilterSearch(e.target.value)}
-                      placeholder="Brand, artisan, order ref, quote ref…"
-                      className="w-full rounded-xl border border-[#E8DED5] px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-leather/20 focus:border-leather"
-                    />
-                  </div>
-                  <div className="min-w-[130px]">
-                    <label className="block text-xs font-semibold uppercase text-[#A39289] mb-1">Job Type</label>
-                    <select
-                      value={filterJobType}
-                      onChange={(e) => setFilterJobType(e.target.value)}
-                      className="w-full rounded-xl border border-[#E8DED5] px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-leather/20 focus:border-leather bg-white"
-                    >
-                      <option value="">All Types</option>
-                      <option value="SAMPLE">Sample</option>
-                      <option value="PRODUCTION">Production</option>
-                    </select>
-                  </div>
-                  <div className="min-w-[160px]">
-                    <label className="block text-xs font-semibold uppercase text-[#A39289] mb-1">Job Status</label>
-                    <select
-                      value={filterJobStatus}
-                      onChange={(e) => setFilterJobStatus(e.target.value)}
-                      className="w-full rounded-xl border border-[#E8DED5] px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-leather/20 focus:border-leather bg-white"
-                    >
-                      <option value="">All Statuses</option>
-                      <option value="ASSIGNED">Assigned</option>
-                      <option value="IN_PROGRESS">In Progress</option>
-                      <option value="VIDEO_UPLOADED">Video Uploaded</option>
-                      <option value="CORRECTION_REQUESTED">Correction Requested</option>
-                      <option value="SAMPLE_APPROVED">Sample Approved</option>
-                      <option value="PENDING_DELIVERY">Ready for Dispatch</option>
-                      <option value="DISPATCHED">Dispatched</option>
-                      <option value="DELIVERED">Delivered</option>
-                      <option value="COMPLETED">Completed</option>
-                      <option value="DECLINED">Declined</option>
-                    </select>
-                  </div>
-                  {(filterSearch || filterJobType || filterJobStatus) && (
-                    <div className="flex items-end">
-                      <button
-                        onClick={() => { setFilterSearch(""); setFilterJobType(""); setFilterJobStatus(""); }}
-                        className="rounded-xl border border-[#E8DED5] px-3 py-2 text-xs font-semibold text-[#A39289] hover:bg-atmosphere"
-                      >
-                        Clear
-                      </button>
-                    </div>
-                  )}
-                </div>
-
                 <div className="overflow-hidden rounded-3xl border border-[#E8DED5] bg-white shadow-xl">
                   {filteredJobs.length === 0 ? (
                     <div className="flex flex-col items-center gap-3 py-20 text-center">
@@ -1040,21 +1205,27 @@ export default function JobsPage() {
               <div className="space-y-3">
                 {/* Jobs needing admin video review */}
                 {(() => {
-                  const videoJobs = activeJobs.filter((j) =>
+                  const totalVideoJobs = activeJobs.filter((j) =>
                     ["VIDEO_UPLOADED", "CORRECTION_REQUESTED", "SAMPLE_APPROVED"].includes(j.status)
-                  );
-                  if (videoJobs.length === 0) return (
+                  ).length;
+                  if (filteredVideoJobs.length === 0) return (
                     <div className="flex flex-col items-center gap-3 rounded-3xl border border-[#E8DED5] bg-white py-20 text-center shadow-xl">
                       <Video className="h-12 w-12 text-[#D7CBC1]" />
-                      <p className="font-semibold text-ink">No sample videos to review</p>
-                      <p className="text-sm text-[#A39289]">Videos appear here when artisans upload them.</p>
+                      <p className="font-semibold text-ink">
+                        {totalVideoJobs === 0 ? "No sample videos to review" : "No videos match the filters"}
+                      </p>
+                      <p className="text-sm text-[#A39289]">
+                        {totalVideoJobs === 0
+                          ? "Videos appear here when artisans upload them."
+                          : "Try adjusting or clearing your filters."}
+                      </p>
                     </div>
                   );
                   return (
                     <div className="overflow-hidden rounded-3xl border border-[#E8DED5] bg-white shadow-xl">
                       <div className="border-b border-[#F4EFEA] bg-atmosphere/40 px-4 py-3">
                         <p className="text-xs font-black uppercase tracking-wider text-[#A39289]">
-                          Videos Needing Review ({videoJobs.length})
+                          Videos Needing Review ({filteredVideoJobs.length})
                         </p>
                       </div>
                       <div className="overflow-x-auto">
@@ -1067,7 +1238,7 @@ export default function JobsPage() {
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-[#F4EFEA]">
-                            {videoJobs.map((job) => (
+                            {filteredVideoJobs.map((job) => (
                               <tr key={job.id} className="hover:bg-atmosphere/20 transition-colors">
                                 <td className="px-4 py-3">
                                   <p className="font-mono text-xs font-bold text-leather">{job.orderRef}</p>

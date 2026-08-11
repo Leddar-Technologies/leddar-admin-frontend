@@ -105,7 +105,7 @@ export default function ArtisansPage() {
       await loadArtisans();
     } catch (err) {
       console.error("Action failed:", err);
-      const message = err.response?.data?.error || "Operation failed. Please try again.";
+      const message = err.response?.data?.message || "Operation failed. Please try again.";
       setActionError(message);
       toast.error(message);
     } finally {

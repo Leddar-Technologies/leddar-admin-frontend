@@ -98,7 +98,7 @@ export default function BrandsPage() {
       await loadBrands();
     } catch (err) {
       console.error("Action failed:", err);
-      setActionError(err.response?.data?.error || "Action failed. Please try again.");
+      setActionError(err.response?.data?.message || "Action failed. Please try again.");
     } finally {
       setActionLoading(false);
     }

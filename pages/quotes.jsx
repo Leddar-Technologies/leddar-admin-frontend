@@ -12,7 +12,7 @@ import { getQuotes, respondToQuote, updateQuoteStatus, getPresignedUrl } from '@
 import { getCommissionSettings } from '@/services/commissionService';
 import { AlertCircle, RefreshCw, FileText, Image, Film, ExternalLink, Eye } from 'lucide-react';
 
-const TABS = ['All', 'Pending Response', 'Under Review', 'Approved', 'Paid'];
+const TABS = ['All', 'Pending Response', 'Under Review', 'Approved'];
 
 export default function QuotesPage() {
   const [rows, setRows]           = useState([]);
@@ -24,9 +24,7 @@ export default function QuotesPage() {
 
   // Respond modal (admin prices the quote)
   const [respondModal, setRespondModal]   = useState({ open: false, quote: null });
-  const [matPerUnit, setMatPerUnit]       = useState('');
-  const [labPerUnit, setLabPerUnit]       = useState('');
-  const [commPct, setCommPct]             = useState('');
+  const [totalPerUnit, setTotalPerUnit]   = useState('');
   const [respondError, setRespondError]   = useState('');
 
   // Approve / reject confirmation modal
@@ -65,7 +63,6 @@ export default function QuotesPage() {
     if (activeTab === 'Pending Response') return rows.filter((r) => r.status === 'SUBMITTED');
     if (activeTab === 'Under Review')     return rows.filter((r) => r.status === 'UNDER_REVIEW');
     if (activeTab === 'Approved')         return rows.filter((r) => r.status === 'APPROVED');
-    if (activeTab === 'Paid')             return rows.filter((r) => r.status === 'APPROVED');
     return rows;
   }, [rows, activeTab]);
 
@@ -78,34 +75,22 @@ export default function QuotesPage() {
   // Respond: admin sets pricing
   // ---------------------------------------------------------------------------
   const openRespond = (quote) => {
-    setMatPerUnit('');
-    setLabPerUnit('');
-    setCommPct(settings?.adminRate ?? 15);
+    setTotalPerUnit('');
     setRespondError('');
     setRespondModal({ open: true, quote });
   };
 
   const submitRespond = async (e) => {
     e.preventDefault();
-    const qty = Number(respondModal.quote?.quantity || 1);
-    const mat = Number(matPerUnit || 0) * qty;
-    const lab = Number(labPerUnit || 0) * qty;
-    const pct = Number(commPct || 0);
-    // Bake commission equally into both materials and labour
-    const matWithComm = Math.round(mat * (1 + pct / 100));
-    const labWithComm = Math.round(lab * (1 + pct / 100));
-    const finalPrice  = matWithComm + labWithComm;
-    if (!matPerUnit || Number(matPerUnit) <= 0) { setRespondError('Enter a valid materials cost per unit.'); return; }
-    if (!labPerUnit || Number(labPerUnit) <= 0) { setRespondError('Enter a valid labour cost per unit.'); return; }
-    if (pct < 0 || pct > 100) { setRespondError('Commission must be between 0 and 100%.'); return; }
+    if (!totalPerUnit || Number(totalPerUnit) <= 0) { setRespondError('Enter a valid total cost per unit.'); return; }
     setActionLoading(true);
     setRespondError('');
     try {
       await respondToQuote({
         quoteId:   respondModal.quote.id,
-        price:     finalPrice,
-        materials: matWithComm,
-        labour:    labWithComm,
+        price:     calcFinalPrice,
+        materials: calcMaterials,
+        labour:    calcLabour,
       });
       setRespondModal({ open: false, quote: null });
       await loadData();
@@ -154,15 +139,16 @@ export default function QuotesPage() {
     }
   };
 
-  // Auto-calculated pricing for respond modal
-  const respondQty         = Number(respondModal.quote?.quantity || 1);
-  const calcMaterials      = Math.round(Number(matPerUnit || 0) * respondQty);
-  const calcLabour         = Math.round(Number(labPerUnit || 0) * respondQty);
-  const calcBase           = calcMaterials + calcLabour;
-  const calcCommPct        = Number(commPct || 0);
-  const calcMatWithComm    = Math.round(calcMaterials * (1 + calcCommPct / 100));
-  const calcLabWithComm    = Math.round(calcLabour    * (1 + calcCommPct / 100));
-  const calcFinalPrice     = calcMatWithComm + calcLabWithComm;
+  // Auto-calculated pricing for respond modal — total is split by the
+  // commission-settings rates (materials/service-labour/admin sum to 100%).
+  const respondQty     = Number(respondModal.quote?.quantity || 1);
+  const calcFinalPrice = Math.round(Number(totalPerUnit || 0) * respondQty);
+  const stage1Pct       = Number(settings?.artisanStage1Rate || 0); // materials
+  const stage2Pct       = Number(settings?.artisanStage2Rate || 0); // service/labour
+  const adminPct        = Number(settings?.adminRate || 0);
+  const calcMaterials   = Math.round(calcFinalPrice * (stage1Pct / 100));
+  const calcLabour      = Math.round(calcFinalPrice * (stage2Pct / 100));
+  const calcAdminCut    = Math.round(calcFinalPrice * (adminPct  / 100));
 
   return (
     <AdminRoute>
@@ -183,7 +169,7 @@ export default function QuotesPage() {
             {TABS.map((tab) => {
               const badge = tab === 'Pending Response' ? pendingCount
                 : tab === 'Under Review' ? reviewCount
-                : tab === 'Approved' || tab === 'Paid' ? approvedCount
+                : tab === 'Approved' ? approvedCount
                 : null;
               return (
                 <button
@@ -298,93 +284,42 @@ export default function QuotesPage() {
 
               <form className="space-y-4" onSubmit={submitRespond}>
 
-                {/* Per-unit cost inputs */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-sm font-semibold text-ink mb-1">
-                      Materials Cost per Unit (₦) <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="number"
-                      min="1"
-                      value={matPerUnit}
-                      onChange={(e) => setMatPerUnit(e.target.value)}
-                      placeholder="e.g. 1000"
-                      className="w-full rounded-xl border border-[#E8DED5] px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-leather/20 focus:border-leather"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-semibold text-ink mb-1">
-                      Labour Cost per Unit (₦) <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="number"
-                      min="1"
-                      value={labPerUnit}
-                      onChange={(e) => setLabPerUnit(e.target.value)}
-                      placeholder="e.g. 667"
-                      className="w-full rounded-xl border border-[#E8DED5] px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-leather/20 focus:border-leather"
-                      required
-                    />
-                  </div>
-                </div>
-
-                {/* Auto-populated totals */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-sm font-semibold text-ink mb-1">
-                      Total Materials (₦ × {respondQty} units)
-                    </label>
-                    <input
-                      type="text"
-                      readOnly
-                      value={calcMaterials > 0 ? calcMaterials.toLocaleString('en-NG') : ''}
-                      placeholder="Auto-calculated"
-                      className="w-full rounded-xl border border-[#E8DED5] bg-atmosphere/60 px-3 py-2.5 text-sm text-[#5A4A44] cursor-not-allowed"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-semibold text-ink mb-1">
-                      Total Labour (₦ × {respondQty} units)
-                    </label>
-                    <input
-                      type="text"
-                      readOnly
-                      value={calcLabour > 0 ? calcLabour.toLocaleString('en-NG') : ''}
-                      placeholder="Auto-calculated"
-                      className="w-full rounded-xl border border-[#E8DED5] bg-atmosphere/60 px-3 py-2.5 text-sm text-[#5A4A44] cursor-not-allowed"
-                    />
-                  </div>
-                </div>
-
-                {/* Commission — read-only, from admin settings */}
+                {/* Single total-cost input */}
                 <div>
                   <label className="block text-sm font-semibold text-ink mb-1">
-                    Commission (%) <span className="text-xs font-normal text-[#A39289]">— from settings · hidden from brand</span>
+                    Total Cost per Unit (₦) <span className="text-red-500">*</span>
                   </label>
                   <input
-                    type="text"
-                    readOnly
-                    value={`${commPct}%`}
-                    className="w-full rounded-xl border border-[#E8DED5] bg-atmosphere/60 px-3 py-2.5 text-sm text-[#5A4A44] cursor-not-allowed"
+                    type="number"
+                    min="1"
+                    value={totalPerUnit}
+                    onChange={(e) => setTotalPerUnit(e.target.value)}
+                    placeholder="e.g. 1667"
+                    className="w-full rounded-xl border border-[#E8DED5] px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-leather/20 focus:border-leather"
+                    required
                   />
                 </div>
 
-                {/* Pricing summary */}
-                {calcBase > 0 && (
+                {/* Pricing summary — split from the total using commission settings */}
+                {calcFinalPrice > 0 && (
                   <div className="rounded-xl bg-[#FFF8EF] border border-[#E6D7CB] p-4 text-sm space-y-2">
-                    <p className="font-semibold text-ink mb-1">Pricing Summary <span className="text-xs font-normal text-[#A39289]">(commission baked in equally)</span></p>
+                    <p className="font-semibold text-ink mb-1">
+                      Pricing Summary <span className="text-xs font-normal text-[#A39289]">(₦{Number(totalPerUnit || 0).toLocaleString('en-NG')} × {respondQty} units · split from settings)</span>
+                    </p>
                     <div className="flex justify-between text-[#5A4A44]">
-                      <span>Materials (incl. {calcCommPct}%)</span>
-                      <strong className="text-ink">{formatCurrency(calcMatWithComm)}</strong>
+                      <span>Materials ({stage1Pct}%)</span>
+                      <strong className="text-ink">{formatCurrency(calcMaterials)}</strong>
                     </div>
                     <div className="flex justify-between text-[#5A4A44]">
-                      <span>Labour (incl. {calcCommPct}%)</span>
-                      <strong className="text-ink">{formatCurrency(calcLabWithComm)}</strong>
+                      <span>Service / Labour ({stage2Pct}%)</span>
+                      <strong className="text-ink">{formatCurrency(calcLabour)}</strong>
+                    </div>
+                    <div className="flex justify-between text-[#5A4A44]">
+                      <span>Admin Commission ({adminPct}%) <span className="text-xs text-[#A39289]">— hidden from brand</span></span>
+                      <strong className="text-ink">{formatCurrency(calcAdminCut)}</strong>
                     </div>
                     <div className="flex justify-between border-t border-[#E6D7CB] pt-2 mt-1">
-                      <span className="font-semibold text-[#5A4A44]">Price Sent to Brand</span>
+                      <span className="font-semibold text-[#5A4A44]">Total Money to Be Paid</span>
                       <strong className="text-leather text-base">{formatCurrency(calcFinalPrice)}</strong>
                     </div>
                   </div>
