@@ -19,6 +19,7 @@ import {
   dispatchProduction,
   confirmDelivery,
   presignAdminFile,
+  cancelJob,
 } from "@/services/jobsService";
 import {
   ClipboardList, Users, Video, CheckCircle2,
@@ -198,6 +199,14 @@ function JobPanel({ job, onActionDone }) {
     finally { setActionLoading(false); }
   }
 
+  async function handleCancelJob() {
+    if (!window.confirm("Cancel this job assignment? The order will return to the assignment queue.")) return;
+    setActionLoading(true); setActionError("");
+    try { await cancelJob(job.id); onActionDone("Job cancelled — order returned to assignment queue ✓"); }
+    catch (e) { setActionError(getErrorMessage(e)); }
+    finally { setActionLoading(false); }
+  }
+
   async function handleConfirmDelivery() {
     setActionLoading(true); setActionError("");
     try { await confirmDelivery(job.id); onActionDone("Delivery confirmed ✓ — order marked as delivered"); }
@@ -278,6 +287,18 @@ function JobPanel({ job, onActionDone }) {
         </div>
         <span className="shrink-0 rounded-full bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-[10px] font-bold text-emerald-700">KYC ✓</span>
       </div>
+
+      {/* Cancel — only while still awaiting artisan acceptance, so in-progress work is never wiped out */}
+      {job.status === "ASSIGNED" && (
+        <button
+          onClick={handleCancelJob}
+          disabled={actionLoading}
+          className="flex w-full items-center justify-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-100 disabled:opacity-60 transition-colors"
+        >
+          <X className="h-4 w-4" />
+          {actionLoading ? "Cancelling…" : "Cancel Job (return to assignment queue)"}
+        </button>
+      )}
 
       {/* Corrections */}
       {job.type === "SAMPLE" && job.correctionCount > 0 && (

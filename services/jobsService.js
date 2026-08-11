@@ -149,3 +149,9 @@ export async function confirmDelivery(jobId) {
   const res = await apiClient.patch(`/admin/jobs/${jobId}/confirm-delivery`, {});
   return res.data;
 }
+
+/** Admin cancels a stuck ASSIGNED job so the order becomes available for reassignment */
+export async function cancelJob(jobId) {
+  const res = await apiClient.patch(`/admin/jobs/${jobId}/cancel`, {});
+  return res.data;
+}
