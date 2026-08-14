@@ -440,10 +440,10 @@ export default function PaymentHistoryPage() {
                         {r.stage === 'SAMPLE_FLAT_FEE' && <span className="ml-1 text-[10px] text-emerald-500">✓</span>}
                       </td>
                       <td className="px-4 py-3 text-[#5A4A44] whitespace-nowrap">
-                        {r.adminCommission != null ? formatCurrency(r.adminCommission) : '—'}
+                        {(r.stage === 'MATERIAL' || r.stage === 'SERVICE') ? '—' : (r.adminCommission != null ? formatCurrency(r.adminCommission) : '—')}
                       </td>
                       <td className="px-4 py-3 text-blue-700 font-semibold whitespace-nowrap">
-                        {r.vatAmount != null ? formatCurrency(r.vatAmount) : '—'}
+                        {(r.stage === 'MATERIAL' || r.stage === 'SERVICE') ? '—' : (r.vatAmount != null ? formatCurrency(r.vatAmount) : '—')}
                       </td>
                       <td className="px-4 py-3">
                         <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 text-[11px] font-bold text-emerald-700 whitespace-nowrap">

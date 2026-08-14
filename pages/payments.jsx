@@ -56,7 +56,7 @@ export default function PaymentsPage() {
   const [firsLoading, setFirsLoading]           = useState(false);
 
   // Admin commission / withdrawal
-  const [adminEarnings, setAdminEarnings]       = useState({ totalEarned: 0, totalWithdrawn: 0, outstanding: 0, payoutCount: 0, payouts: [] });
+  const [adminEarnings, setAdminEarnings]       = useState({ totalEarned: 0, productionEarned: 0, sampleEarned: 0, totalWithdrawn: 0, outstanding: 0, payoutCount: 0, payouts: [] });
   const [withdrawModal, setWithdrawModal]       = useState({ open: false, amount: '', note: '', otpStep: false, payoutId: null, otp: '' });
   const [withdrawLoading, setWithdrawLoading]   = useState(false);
   const [withdrawError, setWithdrawError]       = useState('');
@@ -159,10 +159,11 @@ export default function PaymentsPage() {
         }, 0)
       : 0;
     // Sample payment totals
+    const sampleTotalFlatFee     = samplePayments.reduce((s, p) => s + (p.flatFee || 0), 0);
     const sampleTotalReleased    = samplePayments.reduce((s, p) => s + (p.artisanAmount || 0), 0);
     const sampleTotalCommission  = samplePayments.reduce((s, p) => s + (p.adminCommission || 0), 0);
     const sampleTotalVat         = samplePayments.reduce((s, p) => s + (p.vatAmount || 0), 0);
-    return { totalEscrow, totalCommission, totalReleased, sampleTotalReleased, sampleTotalCommission, sampleTotalVat };
+    return { totalEscrow, totalCommission, totalReleased, sampleTotalFlatFee, sampleTotalReleased, sampleTotalCommission, sampleTotalVat };
   }, [payments, settings, samplePayments]);
 
   const openConfirm = (payment, stage) => {
@@ -668,18 +669,30 @@ export default function PaymentsPage() {
           /* ── Admin Commission Tab ── */
           <div className="space-y-6">
 
-            {/* Hero card */}
-            <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-amber-800 via-amber-700 to-leather p-8 text-white shadow-xl">
-              <div className="relative z-10">
-                <div className="flex items-center gap-2 mb-1">
-                  <TrendingUp className="h-4 w-4 text-amber-300" />
-                  <p className="text-xs font-semibold uppercase tracking-widest text-amber-300">Admin Commission</p>
+            {/* Hero row — total + source breakdown, all on the same level */}
+            <div className="grid gap-4 sm:grid-cols-3">
+              <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-amber-800 via-amber-700 to-leather p-6 text-white shadow-xl">
+                <div className="relative z-10">
+                  <div className="flex items-center gap-2 mb-1">
+                    <TrendingUp className="h-4 w-4 text-amber-300" />
+                    <p className="text-xs font-semibold uppercase tracking-widest text-amber-300">Admin Commission</p>
+                  </div>
+                  <p className="text-3xl font-extrabold tracking-tight">{formatCurrency(adminEarnings.totalEarned)}</p>
+                  <p className="mt-1 text-xs text-amber-200">Total commission earned from all orders</p>
                 </div>
-                <p className="text-4xl font-extrabold tracking-tight">{formatCurrency(adminEarnings.totalEarned)}</p>
-                <p className="mt-1 text-sm text-amber-200">Total commission earned from all orders</p>
+                <div className="absolute -right-8 -top-8 h-40 w-40 rounded-full bg-white/5" />
+                <div className="absolute -right-2 -bottom-10 h-32 w-32 rounded-full bg-white/5" />
               </div>
-              <div className="absolute -right-8 -top-8 h-40 w-40 rounded-full bg-white/5" />
-              <div className="absolute -right-2 -bottom-10 h-32 w-32 rounded-full bg-white/5" />
+              <div className="rounded-2xl border border-[#E8DED5] bg-white p-5 shadow-sm">
+                <p className="text-xs font-semibold uppercase tracking-wide text-[#A39289]">Production Commission</p>
+                <p className="mt-2 text-2xl font-extrabold text-leather">{formatCurrency(adminEarnings.productionEarned)}</p>
+                <p className="mt-1 text-[11px] text-[#A39289]">From Stage 1 &amp; Stage 2 releases</p>
+              </div>
+              <div className="rounded-2xl border border-[#E8DED5] bg-white p-5 shadow-sm">
+                <p className="text-xs font-semibold uppercase tracking-wide text-[#A39289]">Sample Commission</p>
+                <p className="mt-2 text-2xl font-extrabold text-leather">{formatCurrency(adminEarnings.sampleEarned)}</p>
+                <p className="mt-1 text-[11px] text-[#A39289]">30% of released sample fees</p>
+              </div>
             </div>
 
             {/* Stats row */}
@@ -1011,7 +1024,7 @@ export default function PaymentsPage() {
                       <table className="w-full text-sm">
                         <thead>
                           <tr className="border-b border-[#F4EFEA] bg-atmosphere/40">
-                            {['Order Ref', 'Brand', 'Type', 'Base Amount', 'VAT (7.5%)', 'Invoice Total', 'Invoice Status', 'Date'].map((h) => (
+                            {['Order Ref', 'Brand', 'Type', 'Base Amount', 'VAT (7.5%)', 'Invoice Total', 'Date'].map((h) => (
                               <th key={h} className="px-4 py-3 text-left text-xs font-black uppercase tracking-wider text-[#A39289] whitespace-nowrap">{h}</th>
                             ))}
                           </tr>
@@ -1027,13 +1040,6 @@ export default function PaymentsPage() {
                               <td className="px-4 py-3 text-[#5A4A44]">{formatCurrency(r.baseAmount)}</td>
                               <td className="px-4 py-3 font-semibold text-blue-700">{formatCurrency(r.vatAmount)}</td>
                               <td className="px-4 py-3 font-bold text-ink">{formatCurrency(r.grandTotal)}</td>
-                              <td className="px-4 py-3">
-                                <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-bold border ${
-                                  r.isPaid ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-amber-50 border-amber-200 text-amber-700'
-                                }`}>
-                                  {r.isPaid ? '✓ Paid' : 'Pending'}
-                                </span>
-                              </td>
                               <td className="px-4 py-3 text-xs text-[#A39289] whitespace-nowrap">{formatDate(r.createdAt)}</td>
                             </tr>
                           ))}
@@ -1150,6 +1156,25 @@ export default function PaymentsPage() {
         ) : (
           /* ── Sample Payments Tab ── */
           <div className="space-y-6">
+
+            {/* Summary stats */}
+            <div className="grid gap-4 sm:grid-cols-3">
+              <div className="rounded-2xl border border-[#E8DED5] bg-white p-5 shadow-sm">
+                <p className="text-xs font-semibold uppercase tracking-wide text-[#A39289]">Total Sample Money</p>
+                <p className="mt-2 text-2xl font-extrabold text-leather">{formatCurrency(totals.sampleTotalFlatFee)}</p>
+                <p className="mt-1 text-[11px] text-[#A39289]">Flat fees on released sample payments</p>
+              </div>
+              <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5 shadow-sm">
+                <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Released to Artisan</p>
+                <p className="mt-2 text-2xl font-extrabold text-emerald-800">{formatCurrency(totals.sampleTotalReleased)}</p>
+                <p className="mt-1 text-[11px] text-emerald-500">70% of flat fee</p>
+              </div>
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 shadow-sm">
+                <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">Admin Sample Commission</p>
+                <p className="mt-2 text-2xl font-extrabold text-amber-800">{formatCurrency(totals.sampleTotalCommission)}</p>
+                <p className="mt-1 text-[11px] text-amber-500">30% of flat fee</p>
+              </div>
+            </div>
 
             {/* Pending releases */}
             <div>
