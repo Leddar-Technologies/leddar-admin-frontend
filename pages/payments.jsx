@@ -554,7 +554,7 @@ export default function PaymentsPage() {
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b border-[#F4EFEA] bg-atmosphere/40">
-                        {['Order', 'Brand', 'Brand Paid', 'VAT (7.5%)', 'Escrow Balance', 'Admin Comm', 'Stage 1', 'Stage 2', 'Escrow Status', 'Actions'].map((h) => (
+                        {['Order', 'Brand', 'Date Paid', 'Brand Paid', 'VAT (7.5%)', 'Escrow Balance', 'Admin Comm', 'Stage 1', 'Stage 2', 'Escrow Status', 'Actions'].map((h) => (
                           <th key={h} className="px-4 py-3 text-left text-xs font-black uppercase tracking-wider text-[#A39289] whitespace-nowrap">{h}</th>
                         ))}
                       </tr>
@@ -591,6 +591,9 @@ export default function PaymentsPage() {
                               )}
                             </td>
                             <td className="px-4 py-3 font-medium text-ink">{payment.brand}</td>
+                            <td className="px-4 py-3 text-xs text-[#5A4A44] whitespace-nowrap">
+                              {payment.paidAt ? formatDate(payment.paidAt) : '—'}
+                            </td>
                             <td className="px-4 py-3 font-semibold text-ink">
                               {formatCurrency(brandPaid)}
                             </td>

@@ -33,6 +33,7 @@ export async function getPayments() {
         jobStatus:            item.jobs?.[0]?.status || null,
         fullAmount:           item.totalAmount || 0,
         escrowBalance:        item.escrowBalance || 0,
+        paidAt:               item.createdAt || null,
         // Stable pre-VAT split base (server-computed) — escrowBalance decrements as stages
         // pay out and can no longer double as the base once Stage 1 has been released.
         productionBase:       item.productionBase ?? item.escrowBalance ?? 0,

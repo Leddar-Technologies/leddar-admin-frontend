@@ -712,6 +712,7 @@ export default function JobsPage() {
     if (filterJobType && order._assignType !== filterJobType) return false;
     return matchesSearch([
       order.ref,
+      order.id,
       order.brand?.businessName,
       order.quote?.productType?.[0],
       order.quote?.ref,
@@ -724,7 +725,7 @@ export default function JobsPage() {
     if (!filterJobStatus && ["COMPLETED", "DECLINED", "DELIVERED"].includes(j.status)) return false;
     if (filterJobType   && j.type !== filterJobType) return false;
     if (filterJobStatus && j.status !== filterJobStatus) return false;
-    return matchesSearch([j.brandName, j.artisanName, j.orderRef, j.quoteRef, j.productType]);
+    return matchesSearch([j.id, j.ref, j.brandName, j.artisanName, j.orderRef, j.quoteRef, j.productType]);
   }), [activeJobs, filterJobType, filterJobStatus, filterSearch]);
 
   // Sample Ready — jobs awaiting admin video review.
@@ -732,7 +733,7 @@ export default function JobsPage() {
     if (!["VIDEO_UPLOADED", "CORRECTION_REQUESTED", "SAMPLE_APPROVED"].includes(j.status)) return false;
     if (filterJobType   && j.type !== filterJobType) return false;
     if (filterJobStatus && j.status !== filterJobStatus) return false;
-    return matchesSearch([j.brandName, j.artisanName, j.orderRef, j.quoteRef, j.productType]);
+    return matchesSearch([j.id, j.ref, j.brandName, j.artisanName, j.orderRef, j.quoteRef, j.productType]);
   }), [activeJobs, filterJobType, filterJobStatus, filterSearch]);
 
   // "All Jobs" tab — every job at every stage (including completed/declined),
@@ -740,7 +741,7 @@ export default function JobsPage() {
   const filteredEveryJob = useMemo(() => activeJobs.filter((j) => {
     if (filterJobType   && j.type !== filterJobType) return false;
     if (filterJobStatus && j.status !== filterJobStatus) return false;
-    return matchesSearch([j.brandName, j.artisanName, j.orderRef, j.quoteRef, j.productType]);
+    return matchesSearch([j.id, j.ref, j.brandName, j.artisanName, j.orderRef, j.quoteRef, j.productType]);
   }), [activeJobs, filterJobType, filterJobStatus, filterSearch]);
 
   const groupJobsByOrder = (list) => {
@@ -866,7 +867,7 @@ export default function JobsPage() {
                 <input
                   value={filterSearch}
                   onChange={(e) => setFilterSearch(e.target.value)}
-                  placeholder="Brand, artisan, order ref, quote ref…"
+                  placeholder="Brand, artisan, order ref, quote ref, job ID…"
                   className="w-full rounded-xl border border-[#E8DED5] px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-leather/20 focus:border-leather"
                 />
               </div>
